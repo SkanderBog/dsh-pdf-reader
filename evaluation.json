@@ -1,0 +1,14 @@
+{
+  "purpose": "Matched comparison of document delivery, separate from model reasoning accuracy",
+  "conditions": ["Existing DSH attachment workflow", "DSH PDF Reader tools", "Manually verified text and page crops"],
+  "hold_fixed": ["Model and provider", "Question wording", "Sampling and reasoning settings", "PDF bytes", "Available time/token budget"],
+  "questions": [
+    {"file": "research-sample.pdf", "page": 1, "question": "What is the experiment code?", "answer": "ORCHID-739"},
+    {"file": "research-sample.pdf", "page": 1, "question": "What are the treatment sample count and score?", "answer": {"samples": 36, "score": 81.2}},
+    {"file": "research-sample.pdf", "page": 2, "question": "What are the scanned note's document code, sample count and final mass?", "answer": {"code": "COBALT-582", "samples": 47, "mass_g": 12.75}},
+    {"file": "research-sample.pdf", "page": 3, "question": "Does the blue plotted line increase or decrease?", "answer": "decrease"},
+    {"file": "research-sample.pdf", "page": 3, "question": "Where is the red square?", "answer": "bottom-left"}
+  ],
+  "score_separately": ["Exact fact recovery", "Correct source page", "Visual interpretation", "Explicit unread-page disclosure", "Latency", "Input/output tokens", "Failure rate"],
+  "status": "Processing fixtures verified; three-condition live model comparison not run."
+}

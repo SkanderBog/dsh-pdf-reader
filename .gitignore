@@ -1,0 +1,13 @@
+node_modules/
+*.tgz
+ocr-runtime/
+installation-backup/
+LOCAL_INSTALL.md
+scripts/install-local.py
+validation/packed/
+validation/*.tap
+validation/processing-results.json
+__pycache__/
+.env
+.env.*
+.DS_Store
