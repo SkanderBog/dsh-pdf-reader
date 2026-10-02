@@ -29,7 +29,7 @@ This is a **Harness host plugin**, with no dependency on Tauri, Electron interna
 | Host | Status |
 | --- | --- |
 | DSH Tauri Desktop on Linux, Harness `0.2.0-rc.2` | Installed, enabled and observed running; integration and OCR tests passed. |
-| Native macOS plugin execution | The packed plugin passed all 15 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
+| Native macOS plugin execution | The 0.1.1 packed plugin passed all 22 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
 | Official DeepSeek Harness Desktop | Uses the same plugin mechanism. The official source reviewed on 2026-10-02 is also `0.2.0-rc.2`. Compatibility is expected when the required services and native dependencies are present; the packaged official desktop has not been tested here. |
 | Other Harness versions or Windows | Not yet validated. |
 
