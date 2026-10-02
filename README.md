@@ -29,6 +29,7 @@ This is a **Harness host plugin**, with no dependency on Tauri, Electron interna
 | Host | Status |
 | --- | --- |
 | DSH Tauri Desktop on Linux, Harness `0.2.0-rc.2` | Installed, enabled and observed running; integration and OCR tests passed. |
+| Native macOS plugin execution | The packed plugin passed all 15 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
 | Official DeepSeek Harness Desktop | Uses the same plugin mechanism. The official source reviewed on 2026-10-02 is also `0.2.0-rc.2`. Compatibility is expected when the required services and native dependencies are present; the packaged official desktop has not been tested here. |
 | Other Harness versions or Windows | Not yet validated. |
 
@@ -38,7 +39,7 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 ## Installation
 
-Requires Node 22.19+ or 24+ and DeepSeek Harness with the current tool output, filesystem and attachment interfaces. Tested against Harness `0.2.0-rc.2` on Linux. Windows and macOS have not been tested.
+Requires Node 22.19+ or 24+ and DeepSeek Harness with the current tool output, filesystem and attachment interfaces. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
 Download `dsh-pdf-reader-0.1.0.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.0). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
 
@@ -70,7 +71,7 @@ Ubuntu/Debian:
 sudo apt install poppler-utils tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim
 ```
 
-macOS (installation instructions only; not validated here):
+macOS (native tools tested in CI; packaged desktop GUI not validated here):
 
 ```sh
 brew install poppler tesseract tesseract-lang

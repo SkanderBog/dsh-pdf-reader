@@ -30,3 +30,9 @@ The official `apps/desktop/package.json` and root manifest both identify `0.2.0-
 ## Independent release package check
 
 A fresh npm installation of the pinned official Harness libraries (not the desktop's dependency tree) passed all 15 integration tests against the unpacked release tarball. The archive contains exactly seven allowlisted public files. Source syntax checks passed. Test dependencies are development-only.
+
+## Public CI verification
+
+[GitHub Actions run 36973885294](https://github.com/SkanderBog/dsh-pdf-reader/actions/runs/36973885294) passed on Linux with Node 22, Linux with Node 24, and macOS with Node 24. Each job checks syntax and tests the packed plugin against independently installed official Harness dependencies and native Poppler/Tesseract.
+
+Official source revision inspected: `639ed015397290b3745d163aafe02ffee4aa3f84`. The [desktop documentation at this revision](https://github.com/deepseek-ai/deepseek-harness/blob/639ed015397290b3745d163aafe02ffee4aa3f84/apps/desktop/README.md) describes shared plugin installation and desktop profile ownership.
