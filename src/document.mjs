@@ -39,7 +39,7 @@ export async function openDocument(data, source, binaries, signal) {
       path, directory, pages, source,
       fingerprint: createHash('sha256').update(data).digest('hex'),
       title: info.match(/^Title:\s*(.+)/m)?.[1]?.trim() ?? '',
-      text: new Map(), ocr: new Map(),
+      text: new Map(), ocr: new Map(), images: new Map(),
       async close() { await rm(directory, { recursive: true, force: true }) },
     }
   } catch (error) {
@@ -61,6 +61,23 @@ export async function extract(doc, first, last, layout, binaries, signal) {
   doc.text.clear()
   if (result.length <= 4 * 1024 * 1024) doc.text.set(key, pages)
   return pages
+}
+
+export async function embeddedImages(doc, first, last, binaries, signal) {
+  const key = `${first}:${last}`
+  if (doc.images.has(key)) return doc.images.get(key)
+  const output = (await run(binaries.pdfimages, ['-f', String(first), '-l', String(last), '-list', doc.path], { signal, maxBytes: 1024 * 1024 })).toString('utf8')
+  if (!/^page\s+num\s+type\s+width\s+height/m.test(output)) throw new Error('PDF_IMAGE_DETECTION_FAILED: image listing format is unavailable')
+  const counts = Array(last - first + 1).fill(0)
+  for (const line of output.split('\n')) {
+    const row = /^\s*(\d+)\s+\d+\s+(image|mask|smask)\s+\d+\s+\d+\s/.exec(line)
+    if (!row || row[2] === 'smask') continue
+    const page = Number(row[1])
+    if (page >= first && page <= last) counts[page - first]++
+  }
+  doc.images.clear()
+  doc.images.set(key, counts)
+  return counts
 }
 
 export async function render(doc, page, crop, pixels, binaries, signal) {

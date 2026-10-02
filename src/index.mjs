@@ -2,7 +2,7 @@ import { basename, isAbsolute, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { MAX_FILE_BYTES, openDocument, extract, render, recognize, range, integer, citation } from './document.mjs'
+import { MAX_FILE_BYTES, openDocument, extract, embeddedImages, render, recognize, range, integer, citation } from './document.mjs'
 import { run } from './process.mjs'
 
 export const name = 'dsh-pdf-reader'
@@ -28,7 +28,7 @@ function schema(properties, required = ['file_path']) {
 
 export function apply(ctx, config = {}) {
   const localOcr = join(homedir(), '.local', 'share', 'dsh-pdf-reader', 'tesseract')
-  const binaries = Object.fromEntries(['pdfinfo', 'pdftotext', 'pdftoppm', 'tesseract'].map(key => {
+  const binaries = Object.fromEntries(['pdfinfo', 'pdftotext', 'pdfimages', 'pdftoppm', 'tesseract'].map(key => {
     const value = config[key] ?? (key === 'tesseract' && existsSync(localOcr) ? localOcr : key)
     if (typeof value !== 'string' || (!isAbsolute(value) && value !== key)) throw new Error(`PDF_CONFIG: ${key} must be an absolute executable path or its default command name`)
     return [key, value]
@@ -90,6 +90,16 @@ export function apply(ctx, config = {}) {
     return { source_path: doc.source, sha256: doc.fingerprint, total_pages: doc.pages }
   }
 
+  async function imageCounts(doc, start, end, signal, warnings) {
+    try {
+      return await embeddedImages(doc, start, end, binaries, signal)
+    } catch (error) {
+      signal.throwIfAborted()
+      warnings.push(`IMAGE_DETECTION_UNAVAILABLE: ${error.message}. Mixed scanned regions may be missed; use ocr=force to check them.`)
+      return Array(end - start + 1).fill(null)
+    }
+  }
+
   function register(toolName, description, parameters, action) {
     ctx.tools.register({
       name: toolName, description, parameters,
@@ -120,20 +130,22 @@ export function apply(ctx, config = {}) {
     return { tools, processing: 'local', limits: { file_mib: 64, pages: 2000, read_pages_per_call: 10, inspect_pages_per_call: 100 } }
   })
 
-  register('pdf_inspect', 'Inspect PDF page count and embedded text coverage. Sparse text suggests OCR; it does not prove a page is blank. Returns at most 100 page records; follow next_page.', schema(pages), async (args, exec, signal) => {
+  register('pdf_inspect', 'Inspect PDF page count, embedded text and image counts. Sparse text or embedded images suggest OCR; these checks cannot establish visual comprehension. Returns at most 100 page records; follow next_page.', schema(pages), async (args, exec, signal) => {
     const doc = await document(args, exec, signal)
     const [start, end] = range({ ...args, last_page: args.last_page ?? Math.min((args.first_page ?? 1) + 99, doc.pages) }, doc.pages, 100)
     const texts = await extract(doc, start, end, false, binaries, signal)
+    const warnings = ['Embedded text and image counts do not cover all figures, formulas or vector content. Image detection is a heuristic; logos and already searchable scans can also trigger OCR.']
+    const images = await imageCounts(doc, start, end, signal, warnings)
     return {
       ...report(doc), title: doc.title,
-      pages: texts.map((text, index) => ({ page: start + index, citation: citation(doc.source, start + index), text_characters: text.trim().length, needs_ocr_check: text.replace(/\s/g, '').length < 40 })),
+      pages: texts.map((text, index) => ({ page: start + index, citation: citation(doc.source, start + index), text_characters: text.trim().length, embedded_images: images[index], needs_ocr_check: text.replace(/\s/g, '').length < 40 || images[index] === null || images[index] > 0 })),
       next_page: end < doc.pages ? end + 1 : null,
-      warnings: ['Embedded text does not include all figures, formulas or scanned regions. Sparse-text detection is a heuristic; mixed text/image pages may also need OCR.'],
+      warnings,
       coverage: coverage(doc),
     }
   })
 
-  register('pdf_read', 'Read up to 10 PDF pages with source citations. OCR auto handles pages with little embedded text; force handles mixed/scanned pages. Use layout=true for tables. Truncation gives explicit continuation offsets.', schema({
+  register('pdf_read', 'Read up to 10 PDF pages with source citations. OCR auto checks sparse text and embedded images, retaining selectable text alongside OCR on mixed pages. Force checks every requested page. Use layout=true for tables. Truncation gives explicit continuation offsets.', schema({
     ...pages,
     layout: { type: 'boolean', description: 'Preserve approximate visual spacing for tables; default false uses reading order.' },
     ocr: { type: 'string', enum: ['auto', 'off', 'force'], description: 'Default auto. OCR requires Tesseract and the selected language data.' },
@@ -149,17 +161,28 @@ export function apply(ctx, config = {}) {
     const mode = args.ocr ?? 'auto'
     if (!['auto', 'off', 'force'].includes(mode)) throw new Error('PDF_INVALID_ARGUMENT: invalid OCR mode')
     const texts = await extract(doc, start, end, args.layout === true, binaries, signal)
+    const detectionWarnings = []
+    const images = mode === 'auto' ? await imageCounts(doc, start, end, signal, detectionWarnings) : []
     const results = []
     for (let page = start; page <= end; page++) {
       let text = texts[page - start]
       let method = args.layout ? 'embedded-text-layout' : 'embedded-text'
-      const warnings = []
+      const warnings = [...detectionWarnings]
       const sparse = text.replace(/\s/g, '').length < 40
-      if (mode === 'force' || (mode === 'auto' && sparse)) {
+      if (mode === 'force' || (mode === 'auto' && (sparse || images[page - start] > 0))) {
         try {
-          text = await recognize(doc, page, args.language ?? 'eng', binaries, signal)
-          method = 'tesseract-ocr'
+          const ocr = await recognize(doc, page, args.language ?? 'eng', binaries, signal)
           doc.coverage.ocr.add(page)
+          if (!ocr.trim()) {
+            warnings.push('OCR_NO_TEXT: OCR found no text. Embedded text was retained; visual content may still be unread.')
+          } else if (mode === 'auto' && text.trim()) {
+            text += `\n\n[Additional full-page OCR reading; may duplicate embedded text]\n${ocr}`
+            method = 'embedded-text+ocr'
+            warnings.push('The OCR reading may duplicate or conflict with embedded text; it is not additional independent evidence.')
+          } else {
+            text = ocr
+            method = 'tesseract-ocr'
+          }
           warnings.push('OCR output may contain recognition or reading-order errors; verify tables, numbers and formulas visually.')
         } catch (error) {
           signal.throwIfAborted()
@@ -167,7 +190,7 @@ export function apply(ctx, config = {}) {
           warnings.push(`OCR_UNAVAILABLE: ${error.message}`)
         }
       }
-      if (sparse && method !== 'tesseract-ocr') warnings.push('SPARSE_TEXT: this does not establish that the page is blank. Render it or run OCR.')
+      if (sparse && !method.includes('ocr')) warnings.push('SPARSE_TEXT: this does not establish that the page is blank. Render it or run OCR.')
       if (!text.trim()) warnings.push('NO_TEXT_FOUND: visual content may still be present.')
       if (offset > text.length) throw new Error('PDF_INVALID_ARGUMENT: offset exceeds this page text length')
       const part = text.slice(offset, offset + budget)
@@ -177,7 +200,7 @@ export function apply(ctx, config = {}) {
       budget -= part.length
       if (budget === 0) break
     }
-    return { ...report(doc), pages: results, next_page: results.at(-1).page < end ? results.at(-1).page + 1 : null, coverage: coverage(doc) }
+    return { ...report(doc), pages: results, next_page: results.at(-1).page < end ? results.at(-1).page + 1 : null, warnings: ['TEXT_STRUCTURE_LIMITS: plain text and OCR may flatten superscripts, subscripts, fractions and table structure. Verify equations against a rendered page or a math-capable parser; do not infer exact notation from detached symbols.'], coverage: coverage(doc) }
   })
 
   register('pdf_search', 'Search embedded PDF text by literal substring, with page citations and snippets. Scanned pages are explicitly reported as unsearched by OCR. A match does not establish document-wide understanding.', schema({

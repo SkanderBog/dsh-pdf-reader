@@ -69,6 +69,76 @@ test('selective OCR recovers text unavailable to PDF text extraction', async t =
   assert.match(result.pages[0].warnings.join(' '), /recognition/)
 })
 
+test('inspect flags scanned regions even when a page contains substantial selectable text', async t => {
+  const h = await setup(t)
+  const result = value(await h.call('pdf_inspect', { file_path: 'mixed.pdf' }))
+  assert.ok(result.pages[0].text_characters > 150)
+  assert.equal(result.pages[0].embedded_images, 1)
+  assert.equal(result.pages[0].needs_ocr_check, true)
+})
+
+test('automatic OCR recovers mixed-page receipt facts while retaining exact embedded text', async t => {
+  const h = await setup(t)
+  const original = value(await h.call('pdf_read', { file_path: 'mixed.pdf', ocr: 'off' }))
+  const result = value(await h.call('pdf_read', { file_path: 'mixed.pdf' }))
+  const page = result.pages[0]
+  assert.equal(page.method, 'embedded-text+ocr')
+  assert.ok(page.text.startsWith(original.pages[0].text))
+  for (const answer of ['QUARTZ-916', '108.4', '62']) assert.ok(page.text.includes(answer), page.text)
+  assert.deepEqual(result.coverage.ocr_pages_processed, [1])
+  assert.match(page.warnings.join(' '), /duplicate/)
+})
+
+test('automatic OCR on a text-only page does not require Tesseract', async t => {
+  const h = await setup(t, { tesseract: '/definitely-missing-tesseract' })
+  const result = value(await h.call('pdf_read', { file_path: file }))
+  assert.equal(result.pages[0].method, 'embedded-text')
+  assert.deepEqual(result.pages[0].warnings, [])
+  assert.deepEqual(result.coverage.ocr_pages_processed, [])
+})
+
+test('missing image detection is explicit and still allows sparse-page OCR', async t => {
+  const h = await setup(t, { pdfimages: '/definitely-missing-pdfimages' })
+  const inspection = value(await h.call('pdf_inspect', { file_path: 'mixed.pdf' }))
+  assert.equal(inspection.pages[0].embedded_images, null)
+  assert.match(inspection.warnings.join(' '), /IMAGE_DETECTION_UNAVAILABLE/)
+  const result = value(await h.call('pdf_read', { file_path: file, first_page: 2 }))
+  assert.equal(result.pages[0].method, 'tesseract-ocr')
+  assert.match(result.pages[0].text, /COBALT-582/)
+  assert.match(result.pages[0].warnings.join(' '), /IMAGE_DETECTION_UNAVAILABLE/)
+})
+
+test('missing OCR on a mixed page preserves embedded text and reports the unread region', async t => {
+  const h = await setup(t, { tesseract: '/definitely-missing-tesseract' })
+  const result = value(await h.call('pdf_read', { file_path: 'mixed.pdf' }))
+  assert.equal(result.pages[0].method, 'embedded-text')
+  assert.match(result.pages[0].text, /EMBEDDED-241/)
+  assert.match(result.pages[0].warnings.join(' '), /OCR_UNAVAILABLE/)
+  assert.deepEqual(result.coverage.ocr_pages_processed, [])
+})
+
+test('disabled OCR does not invoke image detection or recognition', async t => {
+  const h = await setup(t, { pdfimages: '/definitely-missing-pdfimages', tesseract: '/definitely-missing-tesseract' })
+  const result = value(await h.call('pdf_read', { file_path: 'mixed.pdf', ocr: 'off' }))
+  assert.equal(result.pages[0].method, 'embedded-text')
+  assert.match(result.pages[0].text, /EMBEDDED-241/)
+  assert.deepEqual(result.pages[0].warnings, [])
+  assert.deepEqual(result.coverage.ocr_pages_processed, [])
+})
+
+test('empty OCR output cannot erase selectable text or imply an empty page', async t => {
+  const h = await setup(t)
+  const executable = join(h.home, 'empty-ocr')
+  await writeFile(executable, '#!/usr/bin/env node\nprocess.exit(0)\n', { mode: 0o755 })
+  const blank = await setup(t, { tesseract: executable })
+  for (const ocr of ['auto', 'force']) {
+    const result = value(await blank.call('pdf_read', { file_path: 'mixed.pdf', ocr }))
+    assert.equal(result.pages[0].method, 'embedded-text')
+    assert.match(result.pages[0].text, /EMBEDDED-241/)
+    assert.match(result.pages[0].warnings.join(' '), /OCR_NO_TEXT/)
+  }
+})
+
 test('render returns actual durable Harness image content and identifies crop scope', async t => {
   const h = await setup(t)
   const result = await h.routed('pdf_render', { file_path: file, page: 3, crop: [0.05, 0.75, 0.35, 0.95], pixels: 1000 })

@@ -41,12 +41,12 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 Requires Node 22.19+ or 24+ and DeepSeek Harness with the current tool output, filesystem and attachment interfaces. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
-Download `dsh-pdf-reader-0.1.0.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.0). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
+Download `dsh-pdf-reader-0.1.1.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.1). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
 
 For the official desktop, prefer its Plugins page. If using the command installed by the official desktop, launch the desktop once to initialize its profile, fully quit it, then run:
 
 ```sh
-dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.0.tgz
+dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.1.tgz
 ```
 
 Reopen the desktop after the command finishes. Do not use `desktop` as the profile for a community shell unless that shell actually owns that profile. Restart the Harness core if its profile does not use hot reload.
@@ -54,7 +54,7 @@ Reopen the desktop after the command finishes. Do not use `desktop` as the profi
 For a named CLI profile:
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.0.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.1.tgz
 ```
 
 Use the profile that the desktop actually runs; its name is not necessarily `web` or `desktop`. Package installation and bundle activation are managed by Harness. Do not copy tool code into the model provider or edit the desktop's generated frontend.
@@ -63,7 +63,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 
 ## Native dependencies
 
-Poppler supplies `pdfinfo`, `pdftotext` and `pdftoppm`. Tesseract is needed for local OCR; image rendering and selectable text do not require it.
+Poppler supplies `pdfinfo`, `pdftotext`, `pdfimages` and `pdftoppm`. Tesseract is needed for local OCR; image rendering and selectable text do not require it.
 
 Ubuntu/Debian:
 
@@ -89,7 +89,7 @@ The OCR language defaults to `eng`. Ask the agent to pass `language: "eng+chi_si
 - Limits: 64 MiB per PDF, 2,000 pages, 100 inspection records and 10 read pages per call, 60,000 returned text characters per read. Long text and inspection ranges have explicit continuation fields. Huge documents should be split.
 - Rendered regions have a 600–2,400 pixel long edge. Crops use `[left, top, right, bottom]` fractions of the displayed, rotation-adjusted page, measured from its top-left corner. Tiny crops that require excessive rasterization are refused.
 - `pdf_render` checks the **current routed model's** image capability. A text-only or unknown route is refused explicitly. OCR text works with either text-only or vision models. This plugin does not automatically send a document to a second model or choose a different provider.
-- Automatic OCR triggers when a page has very little embedded text. Mixed text/scanned pages can escape this heuristic: use `ocr: "force"` and inspect the page. Missing OCR dependencies are reported explicitly.
+- Automatic OCR triggers when a page has little embedded text or Poppler detects embedded images, including mixed text/scanned pages. Selectable text is preserved and a separately labeled full-page OCR reading is appended; duplicate or conflicting readings are not independent evidence. Logos and scans with an existing text layer can trigger extra work. Image detection does not cover vector outlines; use `ocr: "force"` for suspect pages. Missing dependencies are reported explicitly; empty OCR output never erases selectable text. `ocr: "off"` bypasses image detection and OCR.
 - Search currently covers embedded text only. Scanned regions and OCR output are not in the search index; the tool reports this limitation, including sparse pages. Search hits never establish whole-document coverage.
 - Coverage describes complete text and page images returned by these tools in the current cache lifetime, not model comprehension or proof of visual inspection. A crop covers only its selected region. Restart and cache eviction reset coverage.
 - Physical PDF page numbers are one-based and may differ from printed page labels. Returned citations include the filename, physical page and original source path.
@@ -97,7 +97,7 @@ The OCR language defaults to `eng`. Ask the agent to pass `language: "eng+chi_si
 
 ## Verification
 
-The source includes synthetic prose/table, scanned and rotated PDF fixtures and tests against the real Cordis tool registry, filesystem and attachment store. The model capability lookup is controlled in these integration tests; no paid model calls are made.
+The source includes synthetic prose/table, scanned, mixed text/image and rotated PDF fixtures and tests against the real Cordis tool registry, filesystem and attachment store. The model capability lookup is controlled in these integration tests; no paid model calls are made.
 
 Install the native dependencies above, then install the pinned test-only npm dependencies:
 
