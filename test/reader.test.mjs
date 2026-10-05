@@ -7,7 +7,12 @@ import { openDocument, render, extract } from '../src/document.mjs'
 import { run } from '../src/process.mjs'
 
 const file = 'research-sample.pdf'
-const binaries = { pdfinfo: 'pdfinfo', pdftotext: 'pdftotext', pdftoppm: 'pdftoppm', tesseract: process.env.DSH_PDF_TEST_TESSERACT ?? 'tesseract' }
+const binaries = {
+  pdfinfo: 'pdfinfo',
+  pdftotext: 'pdftotext',
+  pdftoppm: 'pdftoppm',
+  ...(process.env.DSH_PDF_TEST_TESSERACT ? { tesseract: process.env.DSH_PDF_TEST_TESSERACT } : {}),
+}
 
 async function setup(t, options = {}) {
   const h = await host({ ...binaries, ...options })
@@ -87,6 +92,17 @@ test('automatic OCR recovers mixed-page receipt facts while retaining exact embe
   for (const answer of ['QUARTZ-916', '108.4', '62']) assert.ok(page.text.includes(answer), page.text)
   assert.deepEqual(result.coverage.ocr_pages_processed, [1])
   assert.match(page.warnings.join(' '), /duplicate/)
+})
+
+test('forced OCR preserves exact embedded text alongside its OCR reading', async t => {
+  const h = await setup(t)
+  const original = value(await h.call('pdf_read', { file_path: file, first_page: 1, ocr: 'off' }))
+  const result = value(await h.call('pdf_read', { file_path: file, first_page: 1, ocr: 'force' }))
+  const page = result.pages[0]
+  assert.equal(page.method, 'embedded-text+ocr')
+  assert.ok(page.text.startsWith(original.pages[0].text))
+  assert.match(page.text, /Additional full-page OCR reading/)
+  assert.deepEqual(result.coverage.ocr_pages_processed, [1])
 })
 
 test('automatic OCR on a text-only page does not require Tesseract', async t => {

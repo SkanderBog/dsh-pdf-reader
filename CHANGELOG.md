@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Preserve exact embedded PDF text when `ocr: "force"` adds a full-page OCR reading, matching the safer mixed-page behavior of automatic OCR.
+- Let local tests use the plugin's normal user-local Tesseract discovery unless an explicit test executable is configured.
+
 ## 0.1.0 — 2026-10-02
 
 Initial release of a standalone Harness PDF reader with page inspection, text extraction and search, selective local OCR, and page/crop image output for vision-capable models. Includes page citations, coverage and truncation reporting, filesystem-mediated access, bounded subprocesses and cancellation.

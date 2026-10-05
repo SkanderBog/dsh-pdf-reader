@@ -175,7 +175,7 @@ export function apply(ctx, config = {}) {
           doc.coverage.ocr.add(page)
           if (!ocr.trim()) {
             warnings.push('OCR_NO_TEXT: OCR found no text. Embedded text was retained; visual content may still be unread.')
-          } else if (mode === 'auto' && text.trim()) {
+          } else if (text.trim()) {
             text += `\n\n[Additional full-page OCR reading; may duplicate embedded text]\n${ocr}`
             method = 'embedded-text+ocr'
             warnings.push('The OCR reading may duplicate or conflict with embedded text; it is not additional independent evidence.')
