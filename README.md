@@ -109,6 +109,6 @@ npm run test:package
 
 The package check creates a tarball, checks its exact file list, and runs the integration suite against the unpacked package. `npm test` runs against source. To test an existing Harness installation instead, set `DSH_RUNTIME` to that installation's package root. GitHub Actions runs the package suite on Linux with Node 22 and 24, and on macOS with Node 24. An OS test run checks the plugin and native tools, not a packaged desktop GUI.
 
-Tests use a fresh temporary Harness home and never modify the user's conversations or credentials. Tests use `tesseract` from PATH unless `DSH_PDF_TEST_TESSERACT` selects an absolute executable path. The English and Simplified Chinese data must both be installed.
+Tests use a fresh temporary Harness home and never modify the user's conversations or credentials. They follow the plugin's normal Tesseract discovery (`~/.local/share/dsh-pdf-reader/tesseract`, then `PATH`) unless `DSH_PDF_TEST_TESSERACT` selects an absolute executable path. The English and Simplified Chinese data must both be installed.
 
 This establishes document-processing behavior, not an end-to-end model accuracy benchmark. To measure model gains, hold model, prompts and decoding settings fixed and compare existing attachment handling, these tools, and manually verified evidence on the same PDFs. Use `evaluation.json` in the source directory as the starting rubric.
