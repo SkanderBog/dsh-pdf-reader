@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path'
 import { host, library } from './runtime.mjs'
 import { openDocument, render, extract } from '../src/document.mjs'
 import { run } from '../src/process.mjs'
+import './search.test.mjs'
 
 const file = 'research-sample.pdf'
 const binaries = {

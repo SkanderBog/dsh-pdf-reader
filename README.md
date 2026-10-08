@@ -39,7 +39,7 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 ## Installation
 
-Requires Node 22.19+ or 24+ and DeepSeek Harness with the current tool output, filesystem and attachment interfaces. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
+Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
 Download `dsh-pdf-reader-0.1.1.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.1). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
 
@@ -90,12 +90,16 @@ The OCR language defaults to `eng`. Ask the agent to pass `language: "eng+chi_si
 - Rendered regions have a 600–2,400 pixel long edge. Crops use `[left, top, right, bottom]` fractions of the displayed, rotation-adjusted page, measured from its top-left corner. Tiny crops that require excessive rasterization are refused.
 - `pdf_render` checks the **current routed model's** image capability. A text-only or unknown route is refused explicitly. OCR text works with either text-only or vision models. This plugin does not automatically send a document to a second model or choose a different provider.
 - Automatic OCR triggers when a page has little embedded text or Poppler detects embedded images, including mixed text/scanned pages. Selectable text is preserved and a separately labeled full-page OCR reading is appended; duplicate or conflicting readings are not independent evidence. Logos and scans with an existing text layer can trigger extra work. Image detection does not cover vector outlines; use `ocr: "force"` for suspect pages. Missing dependencies are reported explicitly; empty OCR output never erases selectable text. `ocr: "off"` bypasses image detection and OCR.
-- Search currently covers embedded text only. Scanned regions and OCR output are not in the search index; the tool reports this limitation, including sparse pages. Search hits never establish whole-document coverage.
+- Search processes at most 100 pages per extraction batch, compiling the literal query once. It still scans the entire requested range and reports the full match count even when the returned snippets reach their limit. Each batch retains the native output limit; unusually dense pages may still require a narrower range. Search covers embedded text only, with explicit sparse-page warnings; scanned regions and OCR output are not searched. Search hits never establish whole-document coverage.
 - Coverage describes complete text and page images returned by these tools in the current cache lifetime, not model comprehension or proof of visual inspection. A crop covers only its selected region. Restart and cache eviction reset coverage.
 - Physical PDF page numbers are one-based and may differ from printed page labels. Returned citations include the filename, physical page and original source path.
 - Layout extraction and OCR are fallible. Tables remain text with approximate spacing, not guaranteed cell-accurate data. Math recognition, handwriting, ambiguous reading order and chart interpretation still require verification. Password-protected documents need an unlocked copy.
 
 ## Verification
+
+The 2026-10-08 compatibility audit exercised this checkout alongside Context Manager, Rewind `0.15.0`, Better Sidebar `0.24.1` and DSH Market `1.66.6` in an isolated Harness `0.2.0-rc.2` host. Text extraction and image attachments worked through the shared tool registry; disabling the two audited plugins preserved the other plugins' registrations. Market coverage was limited to route registration and its read-only capabilities endpoint. The companion Context Manager repository contains the reproducible `test:installed` harness. Desktop `0.22.4` pins these same host APIs; its packaged GUI and all bundled desktop features were not exercised by this test.
+
+The search regression uses a real 201-page PDF through Poppler with a guarded converter that rejects oversized extraction batches. It verifies matches and sparse pages across batch boundaries, a non-first-page range, and exact total counts after the snippet limit. The current packed suite contains 24 tests.
 
 The source includes synthetic prose/table, scanned, mixed text/image and rotated PDF fixtures and tests against the real Cordis tool registry, filesystem and attachment store. The model capability lookup is controlled in these integration tests; no paid model calls are made.
 

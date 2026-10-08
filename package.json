@@ -5,7 +5,8 @@
   "description": "Page-aware PDF reading, search, visual crops and selective local OCR for DeepSeek Harness.",
   "license": "MIT",
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.0-rc.2"
   },
   "exports": {
     ".": "./src/index.mjs",

@@ -212,19 +212,23 @@ export function apply(ctx, config = {}) {
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 500) throw new Error('PDF_INVALID_ARGUMENT: query must contain 1 to 500 characters')
     const [start, end] = range({ ...args, last_page: args.last_page ?? doc.pages }, doc.pages)
     const limit = integer(args.limit, 20, 1, 50, 'limit')
-    const texts = await extract(doc, start, end, false, binaries, signal)
+    const query = args.query.normalize('NFKC').replace(/\s+/g, ' ')
+    const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu')
     const matches = []
     const sparse = []
     let totalMatches = 0
-    for (let i = 0; i < texts.length; i++) {
+    // Bound native extraction output and JS allocations independently of document length.
+    for (let first = start; first <= end; first += 100) {
       signal.throwIfAborted()
-      const text = texts[i].normalize('NFKC').replace(/\s+/g, ' ')
-      if (text.replace(/\s/g, '').length < 40) sparse.push(start + i)
-      const query = args.query.normalize('NFKC').replace(/\s+/g, ' ')
-      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      for (const match of text.matchAll(new RegExp(escaped, 'giu'))) {
-        totalMatches++
-        if (matches.length < limit) matches.push({ page: start + i, citation: citation(doc.source, start + i), snippet: text.slice(Math.max(0, match.index - 100), match.index + match[0].length + 180) })
+      const texts = await extract(doc, first, Math.min(first + 99, end), false, binaries, signal)
+      for (let i = 0; i < texts.length; i++) {
+        signal.throwIfAborted()
+        const text = texts[i].normalize('NFKC').replace(/\s+/g, ' ')
+        if (text.replace(/\s/g, '').length < 40) sparse.push(first + i)
+        for (const match of text.matchAll(pattern)) {
+          totalMatches++
+          if (matches.length < limit) matches.push({ page: first + i, citation: citation(doc.source, first + i), snippet: text.slice(Math.max(0, match.index - 100), match.index + match[0].length + 180) })
+        }
       }
     }
     return { ...report(doc), searched_pages: [start, end], total_matches: totalMatches, matches, truncated: totalMatches > matches.length, sparse_pages_needing_ocr: sparse, warnings: ['Search covers embedded text only. It does not search scanned regions, figures or OCR output; read relevant pages with OCR and inspect images.'], coverage: coverage(doc) }
