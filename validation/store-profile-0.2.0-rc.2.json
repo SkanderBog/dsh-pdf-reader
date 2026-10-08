@@ -1,0 +1,29 @@
+{
+  "host": "0.2.0-rc.2",
+  "platform": "linux",
+  "node": "v22.23.2",
+  "scope": "disposable CLI profile with real tool/fs/systemPrompt services; no model calls",
+  "operations": {
+    "install": "passed",
+    "start": "passed",
+    "uninstall": "passed",
+    "rollback": "unknown"
+  },
+  "pluginVersion": "0.1.2",
+  "runtimeSha256": {
+    "src/index.mjs": "c6ffc5b6419213146329ef3d310920d96f2a38ccc8533b8fead3d9e53ad3e471",
+    "src/document.mjs": "4856c8d4446c46118146e517e1f8abe2f425abd9093697e5c32792e214277947",
+    "src/process.mjs": "38a224698973d361bd6e56c3c9bebb777984d966614906018908247384c39268",
+    "cordis.patch.yml": "0b98d240c198d75cd45c1a3f72729b999af183c9e3ef1755792b6ce63aab074a"
+  },
+  "started": {
+    "registered": true,
+    "workflow": true,
+    "text": "ORCHID-739"
+  },
+  "removed": {
+    "registered": false,
+    "workflow": false,
+    "text": null
+  }
+}

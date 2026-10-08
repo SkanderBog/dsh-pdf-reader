@@ -1,0 +1,58 @@
+{
+  "storeCommit": "4918363a6ccbd83b7f90ad1dc546e8e64ac31c31",
+  "pluginVersion": "0.1.2",
+  "compatibility": {
+    "dsh": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "dshReleases": {
+      "0.2.0-rc.2": "compatible",
+      "0.2.1-alpha.1": "compatible"
+    },
+    "dshOperations": {
+      "0.2.0-rc.2": {
+        "install": "passed",
+        "start": "passed",
+        "uninstall": "passed",
+        "rollback": "unknown"
+      },
+      "0.2.1-alpha.1": {
+        "install": "unknown",
+        "start": "unknown",
+        "uninstall": "unknown",
+        "rollback": "unknown"
+      }
+    },
+    "profiles": [
+      "web",
+      "desktop",
+      "custom"
+    ]
+  },
+  "policyScope": "Bounded runtime-source gate only; no claim of full catalog admission or independent security audit",
+  "reasons": [
+    "runtime source contains the files permission signal",
+    "runtime source contains the commands permission signal",
+    "runtime source contains the credentials permission signal"
+  ],
+  "signals": {
+    "files": true,
+    "network": false,
+    "commands": true,
+    "credentials": true,
+    "protectedDsh": false,
+    "nativeOrExecutableArtifacts": false
+  },
+  "reviewSignals": {
+    "toolViewExtension": false,
+    "dynamicModuleLoading": false
+  },
+  "scanComplete": true,
+  "filesScanned": 5,
+  "scope": {
+    "kind": "explicit-files-conservative-superset",
+    "repositoryEntries": 33,
+    "packageEntries": 7,
+    "files": 7
+  },
+  "runtimeFiles": 5,
+  "runtimeBytes": 29078
+}

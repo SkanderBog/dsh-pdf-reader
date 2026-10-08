@@ -1,12 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
+
+- Declare DSH STORE's separate compatibility range, exact release matrix and measured CLI lifecycle results; keep untested operations unknown.
+- Restrict native subprocess environment inheritance to runtime path, font and OCR settings. Host API keys, authentication tokens and loader-injection variables are no longer forwarded.
+- Add actual disposable-profile install/start/tool-execution/uninstall verification and permission/dependency documentation for Store issue #1336.
+
 
 - Reuse inspected text and image counts for contained page ranges, keeping the existing bounded cache and layout separation.
 - Honor cancellation before returning cached extraction results.
 - Add packaged regression coverage and a Harness 0.2.1-alpha.1 compatibility lane.
 
-## Unreleased
+## 0.1.1
 
 - Preserve exact embedded PDF text when `ocr: "force"` adds a full-page OCR reading, matching the safer mixed-page behavior of automatic OCR.
 - Let local tests use the plugin's normal user-local Tesseract discovery unless an explicit test executable is configured.

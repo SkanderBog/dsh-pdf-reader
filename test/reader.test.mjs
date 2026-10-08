@@ -7,6 +7,7 @@ import { openDocument, render, extract } from '../src/document.mjs'
 import { run } from '../src/process.mjs'
 import './search.test.mjs'
 import './cache.test.mjs'
+import './process.test.mjs'
 
 const file = 'research-sample.pdf'
 const binaries = {

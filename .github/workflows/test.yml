@@ -52,3 +52,28 @@ jobs:
           JS
       - run: npm run check
       - run: npm run test:package
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - name: Install native PDF tools
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - name: Install an isolated exact DSH CLI
+        run: npm install --prefix "$RUNNER_TEMP/pdf-reader-host" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.0-rc.2
+      - name: Real CLI install, start, tool execution and uninstall
+        env:
+          DSH_CLI: ${{ runner.temp }}/pdf-reader-host/node_modules/@deepseek-ai/dsh/lib/bin.js
+          DSH_PROFILE_EVIDENCE: validation/store-profile-ci.json
+        run: npm run test:profile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-reader-profile-evidence
+          path: validation/store-profile-ci.json
+          if-no-files-found: error
