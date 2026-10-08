@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Reuse inspected text and image counts for contained page ranges, keeping the existing bounded cache and layout separation.
+- Honor cancellation before returning cached extraction results.
+- Add packaged regression coverage and a Harness 0.2.1-alpha.1 compatibility lane.
+
+## Unreleased
+
 - Preserve exact embedded PDF text when `ocr: "force"` adds a full-page OCR reading, matching the safer mixed-page behavior of automatic OCR.
 - Let local tests use the plugin's normal user-local Tesseract discovery unless an explicit test executable is configured.
 

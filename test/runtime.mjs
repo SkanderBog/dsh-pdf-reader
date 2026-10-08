@@ -2,8 +2,9 @@ import { createRequire } from 'node:module'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-const plugin = await import(process.env.DSH_PDF_PLUGIN_ENTRY ?? '../src/index.mjs')
+import { join, resolve, isAbsolute } from 'node:path'
+const entry = process.env.DSH_PDF_PLUGIN_ENTRY ?? '../src/index.mjs'
+const plugin = await import(isAbsolute(entry) ? pathToFileURL(entry).href : entry)
 
 const runtime = process.env.DSH_RUNTIME ?? fileURLToPath(new URL('..', import.meta.url))
 const require = createRequire(join(runtime, 'package.json'))

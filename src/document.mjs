@@ -49,8 +49,13 @@ export async function openDocument(data, source, binaries, signal) {
 }
 
 export async function extract(doc, first, last, layout, binaries, signal) {
+  signal?.throwIfAborted()
   const key = `${first}:${last}:${layout}`
-  if (doc.text.has(key)) return doc.text.get(key)
+  for (const [cachedKey, pages] of doc.text) {
+    const [start, end, cachedLayout] = cachedKey.split(':')
+    if (cachedLayout === String(layout) && first >= Number(start) && last <= Number(end))
+      return pages.slice(first - Number(start), last - Number(start) + 1)
+  }
   const result = (await run(binaries.pdftotext, [
     '-f', String(first), '-l', String(last), '-enc', 'UTF-8',
     ...(layout ? ['-layout'] : []), doc.path, '-',
@@ -64,8 +69,12 @@ export async function extract(doc, first, last, layout, binaries, signal) {
 }
 
 export async function embeddedImages(doc, first, last, binaries, signal) {
+  signal?.throwIfAborted()
   const key = `${first}:${last}`
-  if (doc.images.has(key)) return doc.images.get(key)
+  for (const [cachedKey, counts] of doc.images) {
+    const [start, end] = cachedKey.split(':').map(Number)
+    if (first >= start && last <= end) return counts.slice(first - start, last - start + 1)
+  }
   const output = (await run(binaries.pdfimages, ['-f', String(first), '-l', String(last), '-list', doc.path], { signal, maxBytes: 1024 * 1024 })).toString('utf8')
   if (!/^page\s+num\s+type\s+width\s+height/m.test(output)) throw new Error('PDF_IMAGE_DETECTION_FAILED: image listing format is unavailable')
   const counts = Array(last - first + 1).fill(0)
