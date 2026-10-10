@@ -31,6 +31,7 @@ This is a **Harness host plugin**, with no dependency on Tauri, Electron interna
 | DSH Tauri Desktop on Linux, Harness `0.2.0-rc.2` | Installed, enabled and observed running; integration and OCR tests passed. |
 | Native macOS plugin execution | The 0.1.1 packed plugin passed all 22 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
 | Official DeepSeek Harness Desktop | Uses the same plugin mechanism. The official source reviewed on 2026-10-02 is also `0.2.0-rc.2`. Compatibility is expected when the required services and native dependencies are present; the packaged official desktop has not been tested here. |
+| Harness `0.2.1-alpha.1` / `0.2.1-alpha.2` on Linux | Packed plugin tests pass in CI. |
 | Other Harness versions or Windows | Not yet validated. |
 
 The official desktop is described in [DeepSeek's desktop documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md). Its runtime follows the desktop release, so check the installed version rather than assuming every desktop contains the latest runtime. The consumer DeepSeek chat website/app is a separate product and does not load this Harness plugin.
@@ -41,12 +42,12 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
-Download `dsh-pdf-reader-0.1.2.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.2). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
+Download `dsh-pdf-reader-0.1.3.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.3). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
 
 For the official desktop, prefer its Plugins page. If using the command installed by the official desktop, launch the desktop once to initialize its profile, fully quit it, then run:
 
 ```sh
-dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.2.tgz
+dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.3.tgz
 ```
 
 Reopen the desktop after the command finishes. Do not use `desktop` as the profile for a community shell unless that shell actually owns that profile. Restart the Harness core if its profile does not use hot reload.
@@ -54,7 +55,7 @@ Reopen the desktop after the command finishes. Do not use `desktop` as the profi
 For a named CLI profile:
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.2.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.3.tgz
 ```
 
 Use the profile that the desktop actually runs; its name is not necessarily `web` or `desktop`. Package installation and bundle activation are managed by Harness. Do not copy tool code into the model provider or edit the desktop's generated frontend.
@@ -63,7 +64,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 
 ## Store compatibility and permissions
 
-`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Exact supported releases are `0.2.0-rc.2` and `0.2.1-alpha.1`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
+`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, and `0.2.1-alpha.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
 
 | Capability | Scope and boundary |
 | --- | --- |
@@ -100,7 +101,7 @@ The OCR language defaults to `eng`. Ask the agent to pass `language: "eng+chi_si
 
 - Source bytes are read through the mounted Harness filesystem provider, with the calling session's working directory. Access is rechecked on every tool call, even for cached documents. Source files are never modified.
 - Parsing and OCR run locally in temporary working copies using fixed executable arguments, no shell interpolation. The plugin itself makes no network calls. Extracted text and rendered images are subsequently sent to the conversation's configured model provider by Harness as normal tool results.
-- The subprocess wrapper enforces deadlines, output limits, cancellation, and one OCR thread. The child environment retains only runtime path, font and OCR settings (see `nativeEnvironment` in `src/process.mjs`). Custom wrappers that depend on other environment variables must set those values in the trusted wrapper itself. Tool processing is serialized to limit RAM use. At most four documents are cached; unloading the plugin cleans up its temporary copies. A hard process crash can leave OS temporary files behind.
+- The subprocess wrapper enforces deadlines, output limits, cancellation, and one OCR thread. The child environment retains only runtime path, font and OCR settings (see `nativeEnvironment` in `src/process.mjs`). Custom wrappers that depend on other environment variables must set those values in the trusted wrapper itself. Tool processing is serialized to limit RAM use. At most four documents are cached; unloading the plugin cleans up its temporary copies. Failed or cancelled page renders remove any partially written PNG before returning. A hard process crash can leave OS temporary files behind.
 - Limits: 64 MiB per PDF, 2,000 pages, 100 inspection records and 10 read pages per call, 60,000 returned text characters per read. Long text and inspection ranges have explicit continuation fields. Huge documents should be split.
 - Rendered regions have a 600–2,400 pixel long edge. Crops use `[left, top, right, bottom]` fractions of the displayed, rotation-adjusted page, measured from its top-left corner. Tiny crops that require excessive rasterization are refused.
 - `pdf_render` checks the **current routed model's** image capability. A text-only or unknown route is refused explicitly. OCR text works with either text-only or vision models. This plugin does not automatically send a document to a second model or choose a different provider.
@@ -114,7 +115,7 @@ The OCR language defaults to `eng`. Ask the agent to pass `language: "eng+chi_si
 
 The 2026-10-08 compatibility audit exercised this checkout alongside Context Manager, Rewind `0.15.0`, Better Sidebar `0.24.1` and DSH Market `1.66.6` in an isolated Harness `0.2.0-rc.2` host. Text extraction and image attachments worked through the shared tool registry; disabling the two audited plugins preserved the other plugins' registrations. Market coverage was limited to route registration and its read-only capabilities endpoint. The companion Context Manager repository contains the reproducible `test:installed` harness. Desktop `0.22.4` pins these same host APIs; its packaged GUI and all bundled desktop features were not exercised by this test.
 
-The search regression uses a real 201-page PDF through Poppler with a guarded converter that rejects oversized extraction batches. It verifies matches and sparse pages across batch boundaries, a non-first-page range, and exact total counts after the snippet limit. The current packed suite contains 29 tests.
+The search regression uses a real 201-page PDF through Poppler with a guarded converter that rejects oversized extraction batches. It verifies matches and sparse pages across batch boundaries, a non-first-page range, and exact total counts after the snippet limit. The current packed suite contains 30 tests.
 
 The source includes synthetic prose/table, scanned, mixed text/image and rotated PDF fixtures and tests against the real Cordis tool registry, filesystem and attachment store. The model capability lookup is controlled in these integration tests; no paid model calls are made.
 
@@ -128,7 +129,7 @@ npm run test:package
 
 Contained page reads reuse the most recent text/image inspection batch without launching another converter. The existing single-batch memory bounds, source fingerprint checks and filesystem permission checks remain in place. Layout and normal text are cached separately by mode.
 
-The package check creates a tarball, checks its exact file list, and runs the integration suite against the unpacked package. `npm test` runs against source. To test an existing Harness installation instead, set `DSH_RUNTIME` to that installation's package root. GitHub Actions runs the package suite on Linux with Node 22 and 24, and on macOS with Node 24. An additional Linux Node 24 lane tests Harness `0.2.1-alpha.1`; the default dependency set remains `0.2.0-rc.2`. An OS test run checks the plugin and native tools, not a packaged desktop GUI.
+The package check creates a tarball, checks its exact file list, and runs the integration suite against the unpacked package. `npm test` runs against source. To test an existing Harness installation instead, set `DSH_RUNTIME` to that installation's package root. GitHub Actions runs the package suite on Linux with Node 22 and 24, and on macOS with Node 24. Additional Linux Node 24 lanes test Harness `0.2.1-alpha.1` and `0.2.1-alpha.2`; the default dependency set remains `0.2.0-rc.2`. An OS test run checks the plugin and native tools, not a packaged desktop GUI.
 
 Tests use a fresh temporary Harness home and never modify the user's conversations or credentials. They follow the plugin's normal Tesseract discovery (`~/.local/share/dsh-pdf-reader/tesseract`, then `PATH`) unless `DSH_PDF_TEST_TESSERACT` selects an absolute executable path. The English and Simplified Chinese data must both be installed.
 
