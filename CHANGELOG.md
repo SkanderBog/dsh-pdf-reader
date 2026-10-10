@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Remove partial page images when rendering fails or is cancelled, and verify a subsequent render still works.
+- Add a current DSH 0.2.1-alpha.2 compatibility test lane and explicit Store feature/category metadata.
+
 ## 0.1.2
 
 - Declare DSH STORE's separate compatibility range, exact release matrix and measured CLI lifecycle results; keep untested operations unknown.

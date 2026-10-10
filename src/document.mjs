@@ -112,15 +112,18 @@ export async function render(doc, page, crop, pixels, binaries, signal) {
   const w = Math.max(1, Math.ceil(fullWidth * box[2]) - x)
   const h = Math.max(1, Math.ceil(fullHeight * box[3]) - y)
   const prefix = join(doc.directory, 'page')
-  await run(binaries.pdftoppm, [
-    '-f', String(page), '-l', String(page), '-singlefile', '-png',
-    '-r', String(72 * scale), '-x', String(x), '-y', String(y), '-W', String(w), '-H', String(h),
-    doc.path, prefix,
-  ], { signal, maxBytes: 1024 })
-  const data = await readFile(`${prefix}.png`, { signal })
-  await rm(`${prefix}.png`, { force: true })
-  if (data.length > 16 * 1024 * 1024) throw new Error('PDF_IMAGE_LIMIT: render is too large; reduce pixels')
-  return { data, crop: box, width: data.readUInt32BE(16), height: data.readUInt32BE(20) }
+  try {
+    await run(binaries.pdftoppm, [
+      '-f', String(page), '-l', String(page), '-singlefile', '-png',
+      '-r', String(72 * scale), '-x', String(x), '-y', String(y), '-W', String(w), '-H', String(h),
+      doc.path, prefix,
+    ], { signal, maxBytes: 1024 })
+    const data = await readFile(`${prefix}.png`, { signal })
+    if (data.length > 16 * 1024 * 1024) throw new Error('PDF_IMAGE_LIMIT: render is too large; reduce pixels')
+    return { data, crop: box, width: data.readUInt32BE(16), height: data.readUInt32BE(20) }
+  } finally {
+    await rm(`${prefix}.png`, { force: true })
+  }
 }
 
 export async function recognize(doc, page, language, binaries, signal) {
