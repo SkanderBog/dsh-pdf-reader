@@ -31,6 +31,7 @@ This is a **Harness host plugin**, with no dependency on Tauri, Electron interna
 | DSH Tauri Desktop on Linux, Harness `0.2.0-rc.2` | Installed, enabled and observed running; integration and OCR tests passed. |
 | Native macOS plugin execution | The 0.1.1 packed plugin passed all 22 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
 | Official DeepSeek Harness Desktop | Uses the same plugin mechanism. The official source reviewed on 2026-10-02 is also `0.2.0-rc.2`. Compatibility is expected when the required services and native dependencies are present; the packaged official desktop has not been tested here. |
+| Harness `0.2.1-alpha.1` / `0.2.1-alpha.2` on Linux | Packed plugin tests pass in CI. |
 | Other Harness versions or Windows | Not yet validated. |
 
 The official desktop is described in [DeepSeek's desktop documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md). Its runtime follows the desktop release, so check the installed version rather than assuming every desktop contains the latest runtime. The consumer DeepSeek chat website/app is a separate product and does not load this Harness plugin.
@@ -63,7 +64,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 
 ## Store compatibility and permissions
 
-`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Exact supported releases are `0.2.0-rc.2` and `0.2.1-alpha.1`; `0.2.1-alpha.2` is initially marked unknown until its new CI lane passes. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
+`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, and `0.2.1-alpha.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
 
 | Capability | Scope and boundary |
 | --- | --- |
