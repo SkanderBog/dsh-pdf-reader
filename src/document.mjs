@@ -5,6 +5,8 @@ import { join, basename } from 'node:path'
 import { run } from './process.mjs'
 
 export const MAX_FILE_BYTES = 64 * 1024 * 1024
+const MAX_TEXT_CACHE_CHARS = 4 * 1024 * 1024
+const MAX_TEXT_CACHE_PAGES = 200
 
 export function integer(value, fallback, min, max, name) {
   const n = value ?? fallback
@@ -39,7 +41,7 @@ export async function openDocument(data, source, binaries, signal) {
       path, directory, pages, source,
       fingerprint: createHash('sha256').update(data).digest('hex'),
       title: info.match(/^Title:\s*(.+)/m)?.[1]?.trim() ?? '',
-      text: new Map(), ocr: new Map(), images: new Map(),
+      text: new Map(), textChars: 0, ocr: new Map(), images: new Map(),
       async close() { await rm(directory, { recursive: true, force: true }) },
     }
   } catch (error) {
@@ -48,45 +50,72 @@ export async function openDocument(data, source, binaries, signal) {
   }
 }
 
-export async function extract(doc, first, last, layout, binaries, signal) {
+// Reuse individual pages across overlapping ranges; launch native tools only for
+// contiguous missing pages. Both cache hits and each bounded batch honor aborts.
+async function cachedPages(cache, first, last, keyFor, load, remember, signal) {
   signal?.throwIfAborted()
-  const key = `${first}:${last}:${layout}`
-  for (const [cachedKey, pages] of doc.text) {
-    const [start, end, cachedLayout] = cachedKey.split(':')
-    if (cachedLayout === String(layout) && first >= Number(start) && last <= Number(end))
-      return pages.slice(first - Number(start), last - Number(start) + 1)
+  const result = Array(last - first + 1)
+  // Retain this request's hits before adding misses, so LRU eviction cannot
+  // evict a page we are about to return and trigger a chain of rereads.
+  for (let page = first; page <= last; page++) {
+    const key = keyFor(page)
+    if (!cache.has(key)) continue
+    const value = cache.get(key)
+    cache.delete(key); cache.set(key, value)
+    result[page - first] = value
   }
-  const result = (await run(binaries.pdftotext, [
-    '-f', String(first), '-l', String(last), '-enc', 'UTF-8',
-    ...(layout ? ['-layout'] : []), doc.path, '-',
-  ], { signal })).toString('utf8')
-  const pages = result.split('\f')
-  if (pages.at(-1)?.trim() === '') pages.pop()
-  if (pages.length !== last - first + 1) throw new Error('PDF_EXTRACTION_FAILED: extracted page boundaries do not match the requested pages')
-  doc.text.clear()
-  if (result.length <= 4 * 1024 * 1024) doc.text.set(key, pages)
-  return pages
+  for (let page = first; page <= last;) {
+    signal?.throwIfAborted()
+    if (result[page - first] !== undefined) { page++; continue }
+    let end = page
+    while (end < last && end - page < 99 && result[end + 1 - first] === undefined) end++
+    const values = await load(page, end)
+    signal?.throwIfAborted()
+    for (const value of values) {
+      remember(keyFor(page), value)
+      result[page++ - first] = value
+    }
+  }
+  return result
+}
+
+export async function extract(doc, first, last, layout, binaries, signal) {
+  return cachedPages(doc.text, first, last, page => `${layout}:${page}`, async (start, end) => {
+    const result = (await run(binaries.pdftotext, [
+      '-f', String(start), '-l', String(end), '-enc', 'UTF-8',
+      ...(layout ? ['-layout'] : []), doc.path, '-',
+    ], { signal })).toString('utf8')
+    const pages = result.split('\f')
+    if (pages.at(-1)?.trim() === '') pages.pop()
+    if (pages.length !== end - start + 1) throw new Error('PDF_EXTRACTION_FAILED: extracted page boundaries do not match the requested pages')
+    return pages
+  }, (key, text) => {
+    if (text.length > MAX_TEXT_CACHE_CHARS) return
+    while (doc.text.size >= MAX_TEXT_CACHE_PAGES || doc.textChars + text.length > MAX_TEXT_CACHE_CHARS) {
+      const oldest = doc.text.keys().next().value
+      doc.textChars -= doc.text.get(oldest).length
+      doc.text.delete(oldest)
+    }
+    // V8 may keep split strings backed by the entire extraction output. Copy
+    // retained pages so a small cache entry cannot pin a large native batch.
+    doc.text.set(key, Buffer.from(text, 'utf8').toString('utf8'))
+    doc.textChars += text.length
+  }, signal)
 }
 
 export async function embeddedImages(doc, first, last, binaries, signal) {
-  signal?.throwIfAborted()
-  const key = `${first}:${last}`
-  for (const [cachedKey, counts] of doc.images) {
-    const [start, end] = cachedKey.split(':').map(Number)
-    if (first >= start && last <= end) return counts.slice(first - start, last - start + 1)
-  }
-  const output = (await run(binaries.pdfimages, ['-f', String(first), '-l', String(last), '-list', doc.path], { signal, maxBytes: 1024 * 1024 })).toString('utf8')
-  if (!/^page\s+num\s+type\s+width\s+height/m.test(output)) throw new Error('PDF_IMAGE_DETECTION_FAILED: image listing format is unavailable')
-  const counts = Array(last - first + 1).fill(0)
-  for (const line of output.split('\n')) {
-    const row = /^\s*(\d+)\s+\d+\s+(image|mask|smask)\s+\d+\s+\d+\s/.exec(line)
-    if (!row || row[2] === 'smask') continue
-    const page = Number(row[1])
-    if (page >= first && page <= last) counts[page - first]++
-  }
-  doc.images.clear()
-  doc.images.set(key, counts)
-  return counts
+  return cachedPages(doc.images, first, last, page => page, async (start, end) => {
+    const output = (await run(binaries.pdfimages, ['-f', String(start), '-l', String(end), '-list', doc.path], { signal, maxBytes: 1024 * 1024 })).toString('utf8')
+    if (!/^page\s+num\s+type\s+width\s+height/m.test(output)) throw new Error('PDF_IMAGE_DETECTION_FAILED: image listing format is unavailable')
+    const counts = Array(end - start + 1).fill(0)
+    for (const line of output.split('\n')) {
+      const row = /^\s*(\d+)\s+\d+\s+(image|mask|smask)\s+\d+\s+\d+\s/.exec(line)
+      if (!row || row[2] === 'smask') continue
+      const page = Number(row[1])
+      if (page >= start && page <= end) counts[page - start]++
+    }
+    return counts
+  }, (page, count) => doc.images.set(page, count), signal)
 }
 
 export async function render(doc, page, crop, pixels, binaries, signal) {
