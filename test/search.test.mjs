@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { host } from './runtime.mjs'
 
@@ -29,8 +29,10 @@ test('large searches bound extraction batches while preserving page numbers, tot
   const h = await host()
   t.after(() => h.close())
   const converter = join(h.home, 'bounded-pdftotext')
+  const calls = join(h.home, 'converter-calls.txt')
   await writeFile(converter, `#!/usr/bin/env node
 const { spawnSync } = require('node:child_process')
+const { appendFileSync } = require('node:fs')
 const args = process.argv.slice(2)
 const first = Number(args[args.indexOf('-f') + 1])
 const last = Number(args[args.indexOf('-l') + 1])
@@ -38,6 +40,7 @@ if (last - first + 1 > 100) {
   process.stderr.write('Extraction batch exceeds resource budget')
   process.exit(1)
 }
+appendFileSync(${JSON.stringify(calls)}, first + ':' + last + '\\n')
 const result = spawnSync('pdftotext', args, { stdio: 'inherit' })
 process.exit(result.status ?? 1)
 `, { mode: 0o755 })
@@ -52,10 +55,41 @@ process.exit(result.status ?? 1)
   assert.equal(result.value.total_matches, 5)
   assert.deepEqual(result.value.matches.map(m => m.page), [1, 100])
   assert.equal(result.value.truncated, true)
+  assert.equal(result.value.next_offset, 2)
+  const continuation = await bounded.call('pdf_search', { file_path, query: '[orchid-739]', limit: 2, offset: result.value.next_offset })
+  assert.equal(continuation.isError, false, JSON.stringify(continuation))
+  assert.deepEqual(continuation.value.matches.map(m => m.page), [101, 200])
+  assert.equal(continuation.value.total_matches, 5)
+  assert.equal(continuation.value.next_offset, 4)
+  assert.equal((await readFile(calls, 'utf8')).trim().split('\n').length, 6, 'A 201-page document must not cause cache-thrashing subprocesses with a 200-page cache')
+  const last = await bounded.call('pdf_search', { file_path, query: '[orchid-739]', offset: 4 })
+  assert.equal(last.isError, false, JSON.stringify(last))
+  assert.deepEqual(last.value.matches.map(m => m.page), [201])
+  assert.equal(last.value.next_offset, null)
+  assert.equal(last.value.truncated, false)
   assert.deepEqual(result.value.sparse_pages_needing_ocr, [100, 101])
   assert.deepEqual(result.value.coverage.complete_text_pages_returned, [])
   const tail = await bounded.call('pdf_search', { file_path, first_page: 100, last_page: 201, query: '[ORCHID-739]' })
   assert.equal(tail.isError, false, JSON.stringify(tail))
   assert.deepEqual(tail.value.matches.map(m => m.page), [100, 101, 200, 201])
   assert.deepEqual(tail.value.searched_pages, [100, 201])
+})
+
+test('search continuation counts individual matches even on the same page', async t => {
+  const h = await host()
+  t.after(() => h.close())
+  const file_path = join(h.home, 'repeated.pdf')
+  await writeFile(file_path, multipagePdf(['First orchid then second orchid and finally third orchid.']))
+  const first = await h.call('pdf_search', { file_path, query: 'orchid', limit: 1 })
+  assert.equal(first.isError, false, JSON.stringify(first))
+  assert.equal(first.value.total_matches, 3)
+  const rest = await h.call('pdf_search', { file_path, query: 'orchid', offset: first.value.next_offset })
+  assert.equal(rest.isError, false, JSON.stringify(rest))
+  assert.deepEqual(rest.value.matches.map(m => m.page), [1, 1])
+  assert.equal(rest.value.next_offset, null)
+  const pastEnd = await h.call('pdf_search', { file_path, query: 'orchid', offset: 3 })
+  assert.equal(pastEnd.isError, false, JSON.stringify(pastEnd))
+  assert.deepEqual(pastEnd.value.matches, [])
+  assert.equal(pastEnd.value.next_offset, null)
+  assert.equal(pastEnd.value.total_matches, 3)
 })

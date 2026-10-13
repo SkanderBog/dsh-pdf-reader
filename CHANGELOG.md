@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Reuse page text across overlapping reads and layout switches with a bounded least-recently-used cache; preserve image counts across inspected ranges.
+- Convert only missing pages, retaining the 100-page extraction batch limit and avoiding eviction-driven rereads.
+- Add match offsets and `next_offset` to PDF search so later results are accessible without guessing page ranges.
+
 ## 0.1.3
 
 - Remove partial page images when rendering fails or is cancelled, and verify a subsequent render still works.

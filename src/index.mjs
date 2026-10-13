@@ -203,15 +203,17 @@ export function apply(ctx, config = {}) {
     return { ...report(doc), pages: results, next_page: results.at(-1).page < end ? results.at(-1).page + 1 : null, warnings: ['TEXT_STRUCTURE_LIMITS: plain text and OCR may flatten superscripts, subscripts, fractions and table structure. Verify equations against a rendered page or a math-capable parser; do not infer exact notation from detached symbols.'], coverage: coverage(doc) }
   })
 
-  register('pdf_search', 'Search embedded PDF text by literal substring, with page citations and snippets. Scanned pages are explicitly reported as unsearched by OCR. A match does not establish document-wide understanding.', schema({
+  register('pdf_search', 'Search embedded PDF text by literal substring, with page citations and snippets. Follow next_offset with the same query and page range for more matches. Scanned pages are explicitly reported as unsearched by OCR. A match does not establish document-wide understanding.', schema({
     ...pages,
     query: { type: 'string', minLength: 1, maxLength: 500 },
     limit: { type: 'integer', minimum: 1, maximum: 50 },
+    offset: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER, description: 'Number of matches to skip; default 0. Use next_offset from the previous response with the same file, query and page range.' },
   }, ['file_path', 'query']), async (args, exec, signal) => {
     const doc = await document(args, exec, signal)
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 500) throw new Error('PDF_INVALID_ARGUMENT: query must contain 1 to 500 characters')
     const [start, end] = range({ ...args, last_page: args.last_page ?? doc.pages }, doc.pages)
     const limit = integer(args.limit, 20, 1, 50, 'limit')
+    const offset = integer(args.offset, 0, 0, Number.MAX_SAFE_INTEGER, 'offset')
     const query = args.query.normalize('NFKC').replace(/\s+/g, ' ')
     const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu')
     const matches = []
@@ -227,11 +229,12 @@ export function apply(ctx, config = {}) {
         if (text.replace(/\s/g, '').length < 40) sparse.push(first + i)
         for (const match of text.matchAll(pattern)) {
           totalMatches++
-          if (matches.length < limit) matches.push({ page: first + i, citation: citation(doc.source, first + i), snippet: text.slice(Math.max(0, match.index - 100), match.index + match[0].length + 180) })
+          if (totalMatches > offset && matches.length < limit) matches.push({ page: first + i, citation: citation(doc.source, first + i), snippet: text.slice(Math.max(0, match.index - 100), match.index + match[0].length + 180) })
         }
       }
     }
-    return { ...report(doc), searched_pages: [start, end], total_matches: totalMatches, matches, truncated: totalMatches > matches.length, sparse_pages_needing_ocr: sparse, warnings: ['Search covers embedded text only. It does not search scanned regions, figures or OCR output; read relevant pages with OCR and inspect images.'], coverage: coverage(doc) }
+    const hasMore = offset + matches.length < totalMatches
+    return { ...report(doc), searched_pages: [start, end], total_matches: totalMatches, matches, offset, next_offset: hasMore ? offset + matches.length : null, truncated: hasMore, sparse_pages_needing_ocr: sparse, warnings: ['Search covers embedded text only. It does not search scanned regions, figures or OCR output; read relevant pages with OCR and inspect images.'], coverage: coverage(doc) }
   })
 
   register('pdf_render', 'Show one PDF page or a magnified crop to the current vision model. Crop coordinates are [left, top, right, bottom] normalized 0..1 from the displayed page top-left. Returns a real image attachment, not just a path.', schema({
