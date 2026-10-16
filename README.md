@@ -75,7 +75,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 | Environment / credentials | Native subprocesses receive an explicit runtime-path/font/OCR allowlist rather than the full host environment. API keys, tokens, proxy authentication, `NODE_OPTIONS`, `LD_PRELOAD`, and dynamic-library search overrides (`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`) are not forwarded. The plugin does not request a credential service or read credential files. This is not an OS sandbox: configured executables still run with the user's file permissions. |
 | External dependencies | OS-installed Poppler; optional Tesseract with the requested language data. No runtime npm dependencies, lifecycle installation scripts, automatic downloads or bundled native executables. |
 
-See [the store review evidence](validation/STORE-1336.md) for the exact scanner findings, reproduction commands and remaining admission boundary. File/command access is essential to a local PDF processor, so it is not eligible for the store's automatic no-capability approval policy. These declarations do not grant store approval or independent security certification.
+See [the store review evidence](validation/STORE-1336.md) for the exact scanner findings, reproduction commands and remaining admission boundary. File/command access is essential to a local PDF processor; Store's October 15 review keeps installation blocked pending independent verification of the native dependencies. These declarations do not grant store approval or independent security certification.
 
 ## Native dependencies
 

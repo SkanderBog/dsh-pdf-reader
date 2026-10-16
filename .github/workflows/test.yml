@@ -69,7 +69,20 @@ jobs:
       - name: Install native PDF tools
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: Install an isolated exact DSH CLI
-        run: npm install --prefix "$RUNNER_TEMP/pdf-reader-host" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.0-rc.2
+        timeout-minutes: 5
+        env:
+          NODE_OPTIONS: --max-old-space-size=1024
+        # rc.2's floating Cordis peers now select a newer family that makes
+        # npm loop until OOM. Pin the compatible family used by this fixture.
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pdf-reader-host" --ignore-scripts --no-audit --no-fund --save-exact \
+            @deepseek-ai/dsh@0.2.0-rc.2 \
+            @deepseek-ai/cordis@4.0.4 \
+            @deepseek-ai/cordis-plugin-group@1.0.4 \
+            @deepseek-ai/cordis-plugin-include@1.0.9 \
+            @deepseek-ai/cordis-plugin-loader@1.0.5 \
+            @deepseek-ai/cordis-plugin-timer@1.1.6
+          npm ls --prefix "$RUNNER_TEMP/pdf-reader-host" @deepseek-ai/dsh @deepseek-ai/cordis @deepseek-ai/cordis-plugin-group @deepseek-ai/cordis-plugin-include @deepseek-ai/cordis-plugin-loader @deepseek-ai/cordis-plugin-timer
       - name: Real CLI install, start, tool execution and uninstall
         env:
           DSH_CLI: ${{ runner.temp }}/pdf-reader-host/node_modules/@deepseek-ai/dsh/lib/bin.js
