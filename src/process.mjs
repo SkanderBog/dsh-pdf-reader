@@ -1,12 +1,12 @@
 import { spawn } from 'node:child_process'
 
 // Native processors need runtime paths and font/OCR configuration, not the host's
-// API keys, proxy authentication, Git tokens, or arbitrary injection variables.
+// API keys, proxy authentication, Git tokens, or dynamic-loader overrides.
+// Trusted custom wrappers must set their own library paths explicitly.
 const NATIVE_ENV = new Set([
   'PATH', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'SYSTEMROOT', 'WINDIR',
   'TEMP', 'TMP', 'TMPDIR', 'TESSDATA_PREFIX', 'FONTCONFIG_FILE', 'FONTCONFIG_PATH',
-  'XDG_CACHE_HOME', 'XDG_CONFIG_HOME', 'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
-  'DYLD_FALLBACK_LIBRARY_PATH',
+  'XDG_CACHE_HOME', 'XDG_CONFIG_HOME',
 ])
 export function nativeEnvironment(source = process.env) {
   const env = {}
