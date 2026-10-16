@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stop forwarding inherited dynamic-library search overrides to native PDF/OCR processes; trusted custom wrappers must supply their own fixed library paths.
+- Add a source-bound native dependency inventory for Store review, recording executable paths, hashes and version probes without dumping environment values.
 - Reuse page text across overlapping reads and layout switches with a bounded least-recently-used cache; preserve image counts across inspected ranges.
 - Convert only missing pages, retaining the 100-page extraction batch limit and avoiding eviction-driven rereads.
 - Add match offsets and `next_offset` to PDF search so later results are accessible without guessing page ranges.
