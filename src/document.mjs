@@ -149,21 +149,28 @@ export async function render(doc, page, crop, pixels, binaries, signal) {
     ], { signal, maxBytes: 1024 })
     const data = await readFile(`${prefix}.png`, { signal })
     if (data.length > 16 * 1024 * 1024) throw new Error('PDF_IMAGE_LIMIT: render is too large; reduce pixels')
-    return { data, crop: box, width: data.readUInt32BE(16), height: data.readUInt32BE(20) }
+    if (data.length < 33 || !data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      || data.readUInt32BE(8) !== 13 || data.toString('ascii', 12, 16) !== 'IHDR')
+      throw new Error('PDF_INVALID_RENDER: the renderer did not return a PNG image header; check the configured Poppler executable')
+    const renderedWidth = data.readUInt32BE(16), renderedHeight = data.readUInt32BE(20)
+    if (!renderedWidth || !renderedHeight || Math.max(renderedWidth, renderedHeight) > 12000 || renderedWidth * renderedHeight > 36_000_000)
+      throw new Error('PDF_INVALID_RENDER: the renderer returned invalid or oversized image dimensions')
+    return { data, crop: box, width: renderedWidth, height: renderedHeight }
   } finally {
     await rm(`${prefix}.png`, { force: true })
   }
 }
 
 export async function recognize(doc, page, language, binaries, signal) {
+  signal?.throwIfAborted()
   if (!/^[a-zA-Z0-9_]+(?:\+[a-zA-Z0-9_]+)*$/.test(language) || language.length > 100)
     throw new Error('PDF_INVALID_ARGUMENT: OCR language must be a Tesseract language code such as eng or eng+chi_sim')
   const key = `${page}:${language}`
   if (doc.ocr.has(key)) return doc.ocr.get(key)
   const image = await render(doc, page, undefined, 2400, binaries, signal)
   const path = join(doc.directory, 'ocr.png')
-  await writeFile(path, image.data, { signal, mode: 0o600 })
   try {
+    await writeFile(path, image.data, { signal, mode: 0o600 })
     const text = (await run(binaries.tesseract, [path, 'stdout', '-l', language], { signal, timeout: 60000, maxBytes: 1024 * 1024 })).toString('utf8')
     if (doc.ocr.size >= 8) doc.ocr.delete(doc.ocr.keys().next().value)
     if (text.length <= 200000) doc.ocr.set(key, text)

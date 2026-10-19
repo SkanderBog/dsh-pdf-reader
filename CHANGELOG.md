@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 — 2026-10-19
+
+- Honor cancellation before cached OCR returns; clean OCR input files even when writing is interrupted.
+- Reject malformed native PNG headers and invalid image dimensions before returning an attachment.
+- Add a packed runtime test lane for Harness `0.2.1-rc.2`.
 
 - Stop forwarding inherited dynamic-library search overrides to native PDF/OCR processes; trusted custom wrappers must supply their own fixed library paths.
 - Add a source-bound native dependency inventory for Store review, recording executable paths, hashes and version probes without dumping environment values.

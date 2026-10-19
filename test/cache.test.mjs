@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 const entry = process.env.DSH_PDF_PLUGIN_ENTRY
   ? pathToFileURL(resolve(process.env.DSH_PDF_PLUGIN_ENTRY))
   : new URL('../src/index.mjs', import.meta.url)
-const { openDocument, extract, embeddedImages, render } = await import(new URL('./document.mjs', entry))
+const { openDocument, extract, embeddedImages, render, recognize } = await import(new URL('./document.mjs', entry))
 const binaries = { pdfinfo: 'pdfinfo', pdftotext: 'pdftotext', pdfimages: 'pdfimages' }
 
 async function document(t) {
@@ -43,6 +43,25 @@ test('cached extraction and image inspection honor cancellation', async t => {
   const signal = AbortSignal.abort(new Error('cancel cached read'))
   await assert.rejects(extract(doc, 1, 2, false, binaries, signal), /cancel cached read/)
   await assert.rejects(embeddedImages(doc, 1, 2, binaries, signal), /cancel cached read/)
+})
+
+test('cached OCR honors cancellation before returning previously recognized text', async t => {
+  const doc = await document(t)
+  doc.ocr.set('1:eng', 'previous OCR result')
+  const unavailable = { tesseract: 'missing-ocr-test-command' }
+  assert.equal(await recognize(doc, 1, 'eng', unavailable), 'previous OCR result')
+  await assert.rejects(recognize(doc, 1, 'eng', unavailable, AbortSignal.abort(new Error('cancel cached OCR'))), /cancel cached OCR/)
+})
+
+test('invalid native render output fails explicitly and removes the temporary image', async t => {
+  const doc = await document(t)
+  const renderer = join(doc.directory, 'invalid-renderer.mjs')
+  await writeFile(renderer, `#!/usr/bin/env node
+import { writeFileSync } from 'node:fs'
+writeFileSync(process.argv.at(-1) + '.png', Buffer.alloc(24))
+`, { mode: 0o700 })
+  await assert.rejects(render(doc, 1, undefined, 600, { ...binaries, pdftoppm: renderer }), /PDF_INVALID_RENDER/)
+  await assert.rejects(access(join(doc.directory, 'page.png')), { code: 'ENOENT' })
 })
 
 test('switching pages and layout modes preserves reusable extraction and image counts', async t => {

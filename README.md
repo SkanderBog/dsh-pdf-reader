@@ -31,7 +31,7 @@ This is a **Harness host plugin**, with no dependency on Tauri, Electron interna
 | DSH Tauri Desktop on Linux, Harness `0.2.0-rc.2` | Installed, enabled and observed running; integration and OCR tests passed. |
 | Native macOS plugin execution | The 0.1.1 packed plugin passed all 22 integration tests with Node 24, Poppler and Tesseract in GitHub Actions. |
 | Official DeepSeek Harness Desktop | Uses the same plugin mechanism. The official source reviewed on 2026-10-02 is also `0.2.0-rc.2`. Compatibility is expected when the required services and native dependencies are present; the packaged official desktop has not been tested here. |
-| Harness `0.2.1-alpha.1` / `0.2.1-alpha.2` on Linux | Packed plugin tests pass in CI. |
+| Harness `0.2.1-alpha.1` / `0.2.1-alpha.2` / `0.2.1-rc.2` on Linux | Packed plugin tests pass in CI. |
 | Other Harness versions or Windows | Not yet validated. |
 
 The official desktop is described in [DeepSeek's desktop documentation](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md). Its runtime follows the desktop release, so check the installed version rather than assuming every desktop contains the latest runtime. The consumer DeepSeek chat website/app is a separate product and does not load this Harness plugin.
@@ -42,12 +42,12 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
-Download `dsh-pdf-reader-0.1.3.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.3). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. The package is not published to npm.
+Download `dsh-pdf-reader-0.1.4.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.4). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. This project is distributed through GitHub releases. The unscoped `dsh-pdf-reader` name on npm belongs to a different author; use this repository's archive or GitHub source to install this plugin.
 
 For the official desktop, prefer its Plugins page. If using the command installed by the official desktop, launch the desktop once to initialize its profile, fully quit it, then run:
 
 ```sh
-dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.3.tgz
+dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.4.tgz
 ```
 
 Reopen the desktop after the command finishes. Do not use `desktop` as the profile for a community shell unless that shell actually owns that profile. Restart the Harness core if its profile does not use hot reload.
@@ -55,7 +55,7 @@ Reopen the desktop after the command finishes. Do not use `desktop` as the profi
 For a named CLI profile:
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.3.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.4.tgz
 ```
 
 Use the profile that the desktop actually runs; its name is not necessarily `web` or `desktop`. Package installation and bundle activation are managed by Harness. Do not copy tool code into the model provider or edit the desktop's generated frontend.
@@ -64,7 +64,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 
 ## Store compatibility and permissions
 
-`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, and `0.2.1-alpha.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
+`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, `0.2.1-alpha.2`, and `0.2.1-rc.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
 
 | Capability | Scope and boundary |
 | --- | --- |
@@ -133,7 +133,7 @@ npm run test:package
 
 Page reads reuse cached text and image counts across overlapping ranges and layout switches. Only missing pages launch converters, in batches of at most 100 pages. Each document retains at most 200 text pages across both modes and 4,194,304 text characters (up to 8 MiB of UTF-16 character storage, excluding object overhead), evicting the least recently used pages. Image counts retain one number per physical page, bounded by the 2,000-page document limit. Source fingerprint checks and filesystem permission checks remain in place on every tool call.
 
-The package check creates a tarball, checks its exact file list, and runs the integration suite against the unpacked package. `npm test` runs against source. To test an existing Harness installation instead, set `DSH_RUNTIME` to that installation's package root. GitHub Actions runs the package suite on Linux with Node 22 and 24, and on macOS with Node 24. Additional Linux Node 24 lanes test Harness `0.2.1-alpha.1` and `0.2.1-alpha.2`; the default dependency set remains `0.2.0-rc.2`. An OS test run checks the plugin and native tools, not a packaged desktop GUI.
+The package check creates a tarball, checks its exact file list, and runs the integration suite against the unpacked package. `npm test` runs against source. To test an existing Harness installation instead, set `DSH_RUNTIME` to that installation's package root. GitHub Actions runs the package suite on Linux with Node 22 and 24, and on macOS with Node 24. Additional Linux Node 24 lanes test Harness `0.2.1-alpha.1`, `0.2.1-alpha.2`, and `0.2.1-rc.2`; the default dependency set remains `0.2.0-rc.2`. An OS test run checks the plugin and native tools, not a packaged desktop GUI.
 
 Tests use a fresh temporary Harness home and never modify the user's conversations or credentials. They follow the plugin's normal Tesseract discovery (`~/.local/share/dsh-pdf-reader/tesseract`, then `PATH`) unless `DSH_PDF_TEST_TESSERACT` selects an absolute executable path. The English and Simplified Chinese data must both be installed.
 
