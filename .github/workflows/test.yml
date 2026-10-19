@@ -25,6 +25,9 @@ jobs:
           - os: ubuntu-latest
             node: 24
             harness: 0.2.1-alpha.2
+          - os: ubuntu-latest
+            node: 24
+            harness: 0.2.1-rc.2
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -51,7 +54,7 @@ jobs:
           import { execFileSync } from 'node:child_process'
           const { devDependencies } = JSON.parse(readFileSync('package.json', 'utf8'))
           const packages = Object.keys(devDependencies).filter(name => name.startsWith('@deepseek-ai/dsh-'))
-          execFileSync('npm', ['install', '--no-save', '--package-lock=false', '--ignore-scripts', '--no-audit', '--no-fund', '@deepseek-ai/cordis@4.0.5-alpha.1', ...packages.map(name => `${name}@${process.env.HARNESS_TEST_VERSION}`)], { stdio: 'inherit' })
+          execFileSync('npm', ['install', '--no-save', '--package-lock=false', '--ignore-scripts', '--no-audit', '--no-fund', `@deepseek-ai/cordis@${process.env.HARNESS_TEST_VERSION === '0.2.1-rc.2' ? '4.0.5' : '4.0.5-alpha.1'}`, ...packages.map(name => `${name}@${process.env.HARNESS_TEST_VERSION}`)], { stdio: 'inherit' })
           JS
       - run: npm run check
       - run: npm run test:package
