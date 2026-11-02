@@ -247,6 +247,40 @@ test('render refuses text-only models before reading a document', async t => {
   await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }, 'text'), /PDF_MODEL_TEXT_ONLY/)
 })
 
+test('render distinguishes undisclosed model capabilities from explicit text-only capability', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  llm.resolveModelInfo = async () => ({ id: 'new-dynamic-model' })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_UNKNOWN/)
+  llm.resolveModelInfo = async () => ({ inputModalities: [] })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_TEXT_ONLY/)
+})
+
+test('render resolves the active routed provider and dynamic model on every call', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  const calls = []
+  llm.resolveModelInfo = async (provider, model, signal) => {
+    calls.push([provider, model])
+    assert.equal(signal.aborted, false)
+    return { inputModalities: model === 'dynamic-vision' ? ['text', 'image'] : ['text'] }
+  }
+  let current = { provider: 'routed-provider', model: 'dynamic-vision' }
+  const exec = {
+    signal: new AbortController().signal,
+    agent: {
+      session: { header: { id: 'route-test', cwd: resolve('test/fixtures') }, requestHeader() { return { config: current } } },
+      options: { provider: 'stale-provider', model: 'stale-text-model' },
+    },
+  }
+  const render = h.ctx.tools.get('pdf_render')
+  const first = await render.execute({ file_path: file, page: 1, pixels: 600 }, exec)
+  assert.equal(first.image.mediaType, 'image/png')
+  current = { provider: 'another-provider', model: 'dynamic-text' }
+  await assert.rejects(render.execute({ file_path: 'nonexistent.pdf', page: 1 }, exec), /PDF_MODEL_TEXT_ONLY/)
+  assert.deepEqual(calls, [['routed-provider', 'dynamic-vision'], ['another-provider', 'dynamic-text']])
+})
+
 test('malformed PDFs, encryption and page bounds fail explicitly through the real registry', async t => {
   const h = await setup(t)
   const malformed = join(h.home, 'invalid.pdf')
