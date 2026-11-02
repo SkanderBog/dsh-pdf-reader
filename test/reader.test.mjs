@@ -171,6 +171,31 @@ test('render returns actual durable Harness image content and identifies crop sc
   assert.ok(saved)
 })
 
+test('cancelled attachment storage cannot claim an image was delivered', async t => {
+  const h = await setup(t)
+  const attachments = h.ctx.attachments
+  const original = attachments.saveImage
+  let release, started
+  const blocked = new Promise(resolve => { release = resolve })
+  const entered = new Promise(resolve => { started = resolve })
+  attachments.saveImage = async (...args) => { started(); await blocked; return original.apply(attachments, args) }
+  const controller = new AbortController()
+  const rendering = h.direct('pdf_render', { file_path: file, page: 1, pixels: 600 }, 'vision', controller.signal)
+  try {
+    await entered
+    controller.abort(new Error('cancel image storage'))
+    await assert.rejects(rendering, /cancel image storage/)
+  } finally {
+    release()
+    attachments.saveImage = original
+  }
+  // This inspection is queued after the in-flight save and uses the same
+  // session as the cancelled render, so it checks the actual cached ledger.
+  const inspected = await h.direct('pdf_inspect', { file_path: file })
+  assert.deepEqual(inspected.value.coverage.full_page_images_returned, [])
+  assert.deepEqual(inspected.value.coverage.cropped_page_images_returned, [])
+})
+
 test('truncated page text provides a lossless continuation without claiming full coverage', async t => {
   const h = await setup(t)
   const path = join(h.home, 'long.pdf')

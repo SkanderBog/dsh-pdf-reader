@@ -287,6 +287,7 @@ export function apply(ctx, config = {}) {
     const image = await render(doc, page, args.crop, args.pixels ?? 1600, binaries, signal)
     signal.throwIfAborted()
     const attachment = await attachments.saveImage({ data: image.data, mediaType: 'image/png', name: `${basename(doc.source)}-page-${page}.png` })
+    signal.throwIfAborted()
     const whole = image.crop.every((x, i) => x === [0, 0, 1, 1][i])
     doc.coverage[whole ? 'fullImages' : 'crops'].add(page)
     return { ...report(doc), page, citation: citation(doc.source, page), crop: image.crop, rendered_pixels: [image.width, image.height], image: attachment, warnings: ['The provider may downscale this image. Request a tighter crop for small symbols.'], coverage: coverage(doc) }
