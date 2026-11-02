@@ -2,6 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 const entry = process.env.DSH_PDF_PLUGIN_ENTRY
   ? new URL('./process.mjs', pathToFileURL(resolve(process.env.DSH_PDF_PLUGIN_ENTRY)))
   : new URL('../src/process.mjs', import.meta.url)
@@ -33,4 +36,36 @@ test('spawned processes receive the filtered environment and fixed thread limit'
     const result = JSON.parse((await run(process.execPath, ['-e', 'console.log(JSON.stringify({hasMarker:Object.hasOwn(process.env,"DSH_PDF_TEST_PRIVATE_MARKER"),threads:process.env.OMP_THREAD_LIMIT,locale:process.env.LC_ALL,path:!!(process.env.PATH||process.env.Path)}))'])).toString())
     assert.deepEqual(result, {hasMarker:false,threads:'1',locale:'C',path:true})
   } finally { delete process.env.DSH_PDF_TEST_PRIVATE_MARKER }
+})
+
+test('timeouts terminate wrapper descendants instead of waiting for inherited pipes', { skip: process.platform === 'win32' }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pdf-process-test-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const completed = join(directory, 'descendant-completed')
+  const script = `require('node:fs').writeFileSync(${JSON.stringify(completed)}, 'still running')`
+  const descendant = `setTimeout(() => { ${script} }, 1500)`
+  const started = Date.now()
+  await assert.rejects(run(process.execPath, ['-e', `
+    require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], { stdio: 'inherit' })
+    setInterval(() => {}, 1000)
+  `], { timeout: 300 }), /PDF_TIMEOUT/)
+  assert.ok(Date.now() - started < 1200, 'timeout must not wait for the wrapped processor to finish')
+  await new Promise(resolve => setTimeout(resolve, 1600))
+  await assert.rejects(readFile(completed), { code: 'ENOENT' })
+})
+
+test('cancellation and output limits reject promptly while child pipes are inherited', async () => {
+  for (const cause of ['cancel', 'limit']) {
+    const control = new AbortController()
+    const timer = cause === 'cancel' ? setTimeout(() => control.abort(new Error('cancel processor')), 200) : undefined
+    try {
+      const started = Date.now()
+      await assert.rejects(run(process.execPath, ['-e', `
+        require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 1500)'], { stdio: 'inherit' })
+        ${cause === 'limit' ? 'process.stdout.write("x".repeat(1024))' : ''}
+        setInterval(() => {}, 1000)
+      `], { signal: control.signal, maxBytes: 128 }), cause === 'cancel' ? /cancel processor/ : /PDF_OUTPUT_LIMIT/)
+      assert.ok(Date.now() - started < 1200, `${cause} must close inherited pipes promptly`)
+    } finally { clearTimeout(timer) }
+  }
 })

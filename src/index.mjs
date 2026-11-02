@@ -39,12 +39,24 @@ export function apply(ctx, config = {}) {
 
   function serialized(operation, signal) {
     const combined = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
+    combined.throwIfAborted()
     const next = tail.then(() => {
       combined.throwIfAborted()
       return operation(combined)
     })
     tail = next.catch(() => {})
-    return next
+    return new Promise((resolve, reject) => {
+      const abort = () => reject(combined.reason)
+      combined.addEventListener('abort', abort, { once: true })
+      if (combined.aborted) abort()
+      next.then(value => {
+        combined.removeEventListener('abort', abort)
+        resolve(value)
+      }, error => {
+        combined.removeEventListener('abort', abort)
+        reject(error)
+      })
+    })
   }
 
   async function document(args, exec, signal) {

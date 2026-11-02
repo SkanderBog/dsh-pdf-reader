@@ -259,6 +259,35 @@ test('tool cancellation and child-process deadlines terminate work', async t => 
   await assert.rejects(run(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { timeout: 40 }), /PDF_TIMEOUT/)
 })
 
+test('a queued cancellation rejects before unrelated document work completes', async t => {
+  const h = await setup(t)
+  const filesystem = h.ctx.fs
+  const original = filesystem.resolve
+  let release, started
+  const blocked = new Promise(resolve => { release = resolve })
+  const entered = new Promise(resolve => { started = resolve })
+  filesystem.resolve = async (...args) => { started(); await blocked; return original.apply(filesystem, args) }
+  const first = new AbortController(), queued = new AbortController()
+  const running = h.direct('pdf_read', { file_path: file, ocr: 'off' }, 'vision', first.signal).catch(error => error)
+  await entered
+  const waiting = h.direct('pdf_read', { file_path: 'must-not-be-read.pdf' }, 'vision', queued.signal)
+  const reason = new Error('cancel queued read')
+  queued.abort(reason)
+  let timer
+  try {
+    await assert.rejects(Promise.race([
+      waiting,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('queued cancellation blocked')), 200) }),
+    ]), error => error === reason)
+  } finally {
+    clearTimeout(timer)
+    first.abort(new Error('finish blocking read'))
+    release()
+    await running
+    filesystem.resolve = original
+  }
+})
+
 test('source paths containing shell syntax remain literal filenames', async t => {
   const h = await setup(t)
   const path = join(h.home, "notes ' $(touch HACKED).pdf")
