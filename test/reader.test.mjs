@@ -192,13 +192,93 @@ test('truncated page text provides a lossless continuation without claiming full
   assert.deepEqual(part.coverage.complete_text_pages_returned, [])
   const rest = value(await h.call('pdf_read', { file_path: path, offset: 1000, ocr: 'off' }))
   assert.equal(rest.pages[0].truncated, false)
+  assert.deepEqual(rest.coverage.complete_text_pages_returned, [1])
   const recovered = (part.pages[0].text + rest.pages[0].text).trim().split('\n').filter(Boolean)
   assert.deepEqual(recovered, lines)
+})
+
+test('failed multi-page reads never claim text was returned for an earlier page', async t => {
+  const h = await setup(t)
+  const executable = join(h.home, 'failing-second-ocr')
+  const marker = join(h.home, 'ocr-called')
+  await writeFile(executable, `#!/usr/bin/env node
+const fs = require('node:fs')
+if (fs.existsSync(${JSON.stringify(marker)})) process.exit(1)
+fs.writeFileSync(${JSON.stringify(marker)}, '')
+process.stdout.write('First page OCR reading')
+`, { mode: 0o755 })
+  const failing = await setup(t, { tesseract: executable })
+  const failed = await failing.call('pdf_read', { file_path: file, first_page: 1, last_page: 2, ocr: 'force' })
+  assert.equal(failed.isError, true)
+  const inspected = value(await failing.call('pdf_inspect', { file_path: file }))
+  assert.deepEqual(inspected.coverage.complete_text_pages_returned, [])
+  assert.deepEqual(inspected.coverage.ocr_pages_processed, [1], 'processing and text delivery have distinct meanings')
+})
+
+test('continuation coverage never combines different extracted text representations', async t => {
+  const h = await setup(t)
+  const converter = join(h.home, 'layout-text')
+  await writeFile(converter, `#!/usr/bin/env node
+process.stdout.write((process.argv.includes('-layout') ? 'layout ' : 'normal ').repeat(250) + String.fromCharCode(12))
+`, { mode: 0o755 })
+  const reader = await setup(t, { pdftotext: converter })
+  const part = value(await reader.call('pdf_read', { file_path: file, max_chars: 1000, ocr: 'off' }))
+  const changed = value(await reader.call('pdf_read', { file_path: file, offset: part.pages[0].next_offset, ocr: 'off', layout: true }))
+  assert.equal(changed.pages[0].truncated, false)
+  assert.deepEqual(changed.coverage.complete_text_pages_returned, [])
+  const start = value(await reader.call('pdf_read', { file_path: file, max_chars: 1000, ocr: 'off', layout: true }))
+  const rest = value(await reader.call('pdf_read', { file_path: file, offset: start.pages[0].next_offset, ocr: 'off', layout: true }))
+  assert.deepEqual(rest.coverage.complete_text_pages_returned, [1])
+})
+
+test('invalid OCR languages fail consistently before sparse-page detection', async t => {
+  const h = await setup(t, { tesseract: '/definitely-missing-tesseract' })
+  for (const page of [1, 2]) {
+    const result = await h.call('pdf_read', { file_path: file, first_page: page, language: 'eng --psm 3' })
+    assert.equal(result.isError, true)
+    assert.match(JSON.stringify(result), /PDF_INVALID_ARGUMENT/)
+  }
+  const disabled = value(await h.call('pdf_read', { file_path: file, language: 'unused language', ocr: 'off' }))
+  assert.match(disabled.pages[0].text, /ORCHID-739/)
 })
 
 test('render refuses text-only models before reading a document', async t => {
   const h = await setup(t)
   await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }, 'text'), /PDF_MODEL_TEXT_ONLY/)
+})
+
+test('render distinguishes undisclosed model capabilities from explicit text-only capability', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  llm.resolveModelInfo = async () => ({ id: 'new-dynamic-model' })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_UNKNOWN/)
+  llm.resolveModelInfo = async () => ({ inputModalities: [] })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_TEXT_ONLY/)
+})
+
+test('render resolves the active routed provider and dynamic model on every call', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  const calls = []
+  llm.resolveModelInfo = async (provider, model, signal) => {
+    calls.push([provider, model])
+    assert.equal(signal.aborted, false)
+    return { inputModalities: model === 'dynamic-vision' ? ['text', 'image'] : ['text'] }
+  }
+  let current = { provider: 'routed-provider', model: 'dynamic-vision' }
+  const exec = {
+    signal: new AbortController().signal,
+    agent: {
+      session: { header: { id: 'route-test', cwd: resolve('test/fixtures') }, requestHeader() { return { config: current } } },
+      options: { provider: 'stale-provider', model: 'stale-text-model' },
+    },
+  }
+  const render = h.ctx.tools.get('pdf_render')
+  const first = await render.execute({ file_path: file, page: 1, pixels: 600 }, exec)
+  assert.equal(first.image.mediaType, 'image/png')
+  current = { provider: 'another-provider', model: 'dynamic-text' }
+  await assert.rejects(render.execute({ file_path: 'nonexistent.pdf', page: 1 }, exec), /PDF_MODEL_TEXT_ONLY/)
+  assert.deepEqual(calls, [['routed-provider', 'dynamic-vision'], ['another-provider', 'dynamic-text']])
 })
 
 test('malformed PDFs, encryption and page bounds fail explicitly through the real registry', async t => {
@@ -257,6 +337,35 @@ test('tool cancellation and child-process deadlines terminate work', async t => 
   const result = await h.call('pdf_inspect', { file_path: file }, control.signal)
   assert.equal(result.isError, true)
   await assert.rejects(run(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { timeout: 40 }), /PDF_TIMEOUT/)
+})
+
+test('a queued cancellation rejects before unrelated document work completes', async t => {
+  const h = await setup(t)
+  const filesystem = h.ctx.fs
+  const original = filesystem.resolve
+  let release, started
+  const blocked = new Promise(resolve => { release = resolve })
+  const entered = new Promise(resolve => { started = resolve })
+  filesystem.resolve = async (...args) => { started(); await blocked; return original.apply(filesystem, args) }
+  const first = new AbortController(), queued = new AbortController()
+  const running = h.direct('pdf_read', { file_path: file, ocr: 'off' }, 'vision', first.signal).catch(error => error)
+  await entered
+  const waiting = h.direct('pdf_read', { file_path: 'must-not-be-read.pdf' }, 'vision', queued.signal)
+  const reason = new Error('cancel queued read')
+  queued.abort(reason)
+  let timer
+  try {
+    await assert.rejects(Promise.race([
+      waiting,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('queued cancellation blocked')), 200) }),
+    ]), error => error === reason)
+  } finally {
+    clearTimeout(timer)
+    first.abort(new Error('finish blocking read'))
+    release()
+    await running
+    filesystem.resolve = original
+  }
 })
 
 test('source paths containing shell syntax remain literal filenames', async t => {

@@ -161,10 +161,15 @@ export async function render(doc, page, crop, pixels, binaries, signal) {
   }
 }
 
+export function ocrLanguage(language = 'eng') {
+  if (typeof language !== 'string' || !/^[a-zA-Z0-9_]+(?:\+[a-zA-Z0-9_]+)*$/.test(language) || language.length > 100)
+    throw new Error('PDF_INVALID_ARGUMENT: OCR language must be a Tesseract language code such as eng or eng+chi_sim')
+  return language
+}
+
 export async function recognize(doc, page, language, binaries, signal) {
   signal?.throwIfAborted()
-  if (!/^[a-zA-Z0-9_]+(?:\+[a-zA-Z0-9_]+)*$/.test(language) || language.length > 100)
-    throw new Error('PDF_INVALID_ARGUMENT: OCR language must be a Tesseract language code such as eng or eng+chi_sim')
+  language = ocrLanguage(language)
   const key = `${page}:${language}`
   if (doc.ocr.has(key)) return doc.ocr.get(key)
   const image = await render(doc, page, undefined, 2400, binaries, signal)
