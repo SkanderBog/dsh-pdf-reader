@@ -1,0 +1,11 @@
+# PDF Reader 0.1.5 validation
+
+The final extracted seven-file archive passes **46 tests** on current Harness **0.2.1-rc.5** and upcoming **0.2.2-alpha.2**, using real Poppler, Tesseract, filesystem, attachment and tool services. The alpha fixture mounts the actual native tool executor and dispatches through its batch API. Direct document/process regressions also import extracted modules rather than the source checkout.
+
+New regressions reproduce wrapped native processes outliving their deadlines, delayed queued cancellation, incomplete continuation coverage, failed calls falsely marking delivery, malformed OCR languages, undisclosed model capability, and cancellation during attachment storage. Existing tests retain cache limits, large-search batching, mixed/rotated PDFs, OCR and filesystem protections.
+
+Each current runtime also passes **12 actual model-adapter/registry cases**. The real DeepSeek built-in catalog distinguishes Flash image input from Pro text-only input; arbitrary configured models, mutable capabilities, route changes, and separately undisclosed generic metadata are covered. These tests render and read a generated PDF while refusing network, authentication and model-generation attempts. No remote model quality or paid account access is claimed.
+
+CI retains Linux/Node 22 and 24, macOS, and older Harness versions; current rc.5 and alpha.2 have exact matching Cordis pins. Disposable CLI profile tests cover the baseline and add rc.5 installation/start/tool-use/uninstall. Release publication is gated on all jobs, with profile evidence uploaded by CI. Rollback, Windows native execution and packaged desktop GUIs remain unverified. POSIX wrapper descendants are terminated as a process group; Windows retains direct-child termination and bounded pipe cleanup.
+
+This release does not update installed user profiles or imply Store approval. It adds no runtime npm dependencies, background services, downloads or model weights. Use this repository's release archive; the unscoped npm name belongs to another author.

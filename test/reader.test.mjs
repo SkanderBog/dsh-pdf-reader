@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile, copyFile, rm } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { host, library } from './runtime.mjs'
-import { openDocument, render, extract } from '../src/document.mjs'
-import { run } from '../src/process.mjs'
+import { pathToFileURL } from 'node:url'
+const moduleEntry = process.env.DSH_PDF_PLUGIN_ENTRY ? pathToFileURL(resolve(process.env.DSH_PDF_PLUGIN_ENTRY)) : new URL('../src/index.mjs', import.meta.url)
+const { openDocument, render, extract } = await import(new URL('./document.mjs', moduleEntry))
+const { run } = await import(new URL('./process.mjs', moduleEntry))
 import './search.test.mjs'
 import './cache.test.mjs'
 import './process.test.mjs'

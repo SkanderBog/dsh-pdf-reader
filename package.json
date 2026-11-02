@@ -1,6 +1,6 @@
 {
   "name": "dsh-pdf-reader",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Page-aware PDF reading, search, visual crops and selective local OCR for DeepSeek Harness.",
   "license": "MIT",

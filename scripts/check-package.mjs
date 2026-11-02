@@ -15,5 +15,6 @@ try {
   })
   if (result.error) throw result.error
   assert.equal(result.status, 0, 'Packed plugin integration tests failed')
+  if (process.env.DSH_PDF_TEST_MODELS === 'true') execFileSync(process.execPath, ['scripts/check-models.mjs', process.env.DSH_RUNTIME ?? process.cwd(), join(directory, 'package/src/index.mjs')], { stdio: 'inherit', timeout: 60000 })
   console.log(`Verified ${packed.filename}: seven public files; packed plugin integration tests passed.`)
 } finally { await rm(directory, { recursive: true, force: true }) }
