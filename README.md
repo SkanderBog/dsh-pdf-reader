@@ -64,7 +64,7 @@ To disable or uninstall, use that same plugin manager. Disabling removes the too
 
 ## Store compatibility and permissions
 
-`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, `0.2.1-alpha.2`, `0.2.1-rc.2`, `0.2.1-rc.5`, and `0.2.2-alpha.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2`; update rollback remains unknown.
+`engines.dsh` is the host's version gate. DSH STORE separately reads `dsh.compatibility.dsh`, `dshReleases` and `dshOperations`; the manifest declares both formats. Packed API tests pass on DSH `0.2.0-rc.2`, `0.2.1-alpha.1`, `0.2.1-alpha.2`, `0.2.1-rc.2`, `0.2.1-rc.5`, and `0.2.2-alpha.2`. The compatibility matrix describes tested host APIs, not every desktop GUI or OS. Installation/start/uninstall have separate disposable CLI-profile evidence for `0.2.0-rc.2` and current `0.2.1-rc.5`; update rollback remains unknown.
 
 | Capability | Scope and boundary |
 | --- | --- |

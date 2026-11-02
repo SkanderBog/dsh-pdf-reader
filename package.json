@@ -66,9 +66,9 @@
           "rollback": "unknown"
         },
         "0.2.1-rc.5": {
-          "install": "unknown",
-          "start": "unknown",
-          "uninstall": "unknown",
+          "install": "passed",
+          "start": "passed",
+          "uninstall": "passed",
           "rollback": "unknown"
         },
         "0.2.2-alpha.2": {
