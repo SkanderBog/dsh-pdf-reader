@@ -192,8 +192,54 @@ test('truncated page text provides a lossless continuation without claiming full
   assert.deepEqual(part.coverage.complete_text_pages_returned, [])
   const rest = value(await h.call('pdf_read', { file_path: path, offset: 1000, ocr: 'off' }))
   assert.equal(rest.pages[0].truncated, false)
+  assert.deepEqual(rest.coverage.complete_text_pages_returned, [1])
   const recovered = (part.pages[0].text + rest.pages[0].text).trim().split('\n').filter(Boolean)
   assert.deepEqual(recovered, lines)
+})
+
+test('failed multi-page reads never claim text was returned for an earlier page', async t => {
+  const h = await setup(t)
+  const executable = join(h.home, 'failing-second-ocr')
+  const marker = join(h.home, 'ocr-called')
+  await writeFile(executable, `#!/usr/bin/env node
+const fs = require('node:fs')
+if (fs.existsSync(${JSON.stringify(marker)})) process.exit(1)
+fs.writeFileSync(${JSON.stringify(marker)}, '')
+process.stdout.write('First page OCR reading')
+`, { mode: 0o755 })
+  const failing = await setup(t, { tesseract: executable })
+  const failed = await failing.call('pdf_read', { file_path: file, first_page: 1, last_page: 2, ocr: 'force' })
+  assert.equal(failed.isError, true)
+  const inspected = value(await failing.call('pdf_inspect', { file_path: file }))
+  assert.deepEqual(inspected.coverage.complete_text_pages_returned, [])
+  assert.deepEqual(inspected.coverage.ocr_pages_processed, [1], 'processing and text delivery have distinct meanings')
+})
+
+test('continuation coverage never combines different extracted text representations', async t => {
+  const h = await setup(t)
+  const converter = join(h.home, 'layout-text')
+  await writeFile(converter, `#!/usr/bin/env node
+process.stdout.write((process.argv.includes('-layout') ? 'layout ' : 'normal ').repeat(250) + String.fromCharCode(12))
+`, { mode: 0o755 })
+  const reader = await setup(t, { pdftotext: converter })
+  const part = value(await reader.call('pdf_read', { file_path: file, max_chars: 1000, ocr: 'off' }))
+  const changed = value(await reader.call('pdf_read', { file_path: file, offset: part.pages[0].next_offset, ocr: 'off', layout: true }))
+  assert.equal(changed.pages[0].truncated, false)
+  assert.deepEqual(changed.coverage.complete_text_pages_returned, [])
+  const start = value(await reader.call('pdf_read', { file_path: file, max_chars: 1000, ocr: 'off', layout: true }))
+  const rest = value(await reader.call('pdf_read', { file_path: file, offset: start.pages[0].next_offset, ocr: 'off', layout: true }))
+  assert.deepEqual(rest.coverage.complete_text_pages_returned, [1])
+})
+
+test('invalid OCR languages fail consistently before sparse-page detection', async t => {
+  const h = await setup(t, { tesseract: '/definitely-missing-tesseract' })
+  for (const page of [1, 2]) {
+    const result = await h.call('pdf_read', { file_path: file, first_page: page, language: 'eng --psm 3' })
+    assert.equal(result.isError, true)
+    assert.match(JSON.stringify(result), /PDF_INVALID_ARGUMENT/)
+  }
+  const disabled = value(await h.call('pdf_read', { file_path: file, language: 'unused language', ocr: 'off' }))
+  assert.match(disabled.pages[0].text, /ORCHID-739/)
 })
 
 test('render refuses text-only models before reading a document', async t => {

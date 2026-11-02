@@ -2,7 +2,7 @@ import { basename, isAbsolute, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { MAX_FILE_BYTES, openDocument, extract, embeddedImages, render, recognize, range, integer, citation } from './document.mjs'
+import { MAX_FILE_BYTES, openDocument, extract, embeddedImages, render, recognize, ocrLanguage, range, integer, citation } from './document.mjs'
 import { run } from './process.mjs'
 
 export const name = 'dsh-pdf-reader'
@@ -77,7 +77,7 @@ export function apply(ctx, config = {}) {
         await oldDoc.close()
       }
       doc = await openDocument(bytes, target.displayPath, binaries, signal)
-      doc.coverage = { text: new Set(), ocr: new Set(), fullImages: new Set(), crops: new Set() }
+      doc.coverage = { text: new Set(), partial: new Map(), ocr: new Set(), fullImages: new Set(), crops: new Set() }
       documents.set(key, doc)
     } else {
       documents.delete(key)
@@ -100,6 +100,19 @@ export function apply(ctx, config = {}) {
 
   function report(doc) {
     return { source_path: doc.source, sha256: doc.fingerprint, total_pages: doc.pages }
+  }
+
+  function recordTextDelivery(doc, page, fingerprint, offset, length, total) {
+    if (!fingerprint || doc.coverage.text.has(page)) return
+    let partial = doc.coverage.partial.get(page)
+    if (partial?.fingerprint !== fingerprint) partial = { fingerprint, end: 0 }
+    // Only extend a contiguous prefix of the same text representation. Never
+    // combine offsets from different layout modes or changed OCR readings.
+    if (offset <= partial.end) partial.end = Math.max(partial.end, offset + length)
+    if (partial.end === total) {
+      doc.coverage.text.add(page)
+      doc.coverage.partial.delete(page)
+    } else doc.coverage.partial.set(page, partial)
   }
 
   async function imageCounts(doc, start, end, signal, warnings) {
@@ -172,10 +185,12 @@ export function apply(ctx, config = {}) {
     let budget = integer(args.max_chars, 30000, 1000, 60000, 'max_chars')
     const mode = args.ocr ?? 'auto'
     if (!['auto', 'off', 'force'].includes(mode)) throw new Error('PDF_INVALID_ARGUMENT: invalid OCR mode')
+    const language = mode === 'off' ? undefined : ocrLanguage(args.language ?? 'eng')
     const texts = await extract(doc, start, end, args.layout === true, binaries, signal)
     const detectionWarnings = []
     const images = mode === 'auto' ? await imageCounts(doc, start, end, signal, detectionWarnings) : []
     const results = []
+    const deliveries = []
     for (let page = start; page <= end; page++) {
       let text = texts[page - start]
       let method = args.layout ? 'embedded-text-layout' : 'embedded-text'
@@ -183,7 +198,7 @@ export function apply(ctx, config = {}) {
       const sparse = text.replace(/\s/g, '').length < 40
       if (mode === 'force' || (mode === 'auto' && (sparse || images[page - start] > 0))) {
         try {
-          const ocr = await recognize(doc, page, args.language ?? 'eng', binaries, signal)
+          const ocr = await recognize(doc, page, language, binaries, signal)
           doc.coverage.ocr.add(page)
           if (!ocr.trim()) {
             warnings.push('OCR_NO_TEXT: OCR found no text. Embedded text was retained; visual content may still be unread.')
@@ -207,11 +222,14 @@ export function apply(ctx, config = {}) {
       if (offset > text.length) throw new Error('PDF_INVALID_ARGUMENT: offset exceeds this page text length')
       const part = text.slice(offset, offset + budget)
       const truncated = offset + part.length < text.length
-      if (!truncated && offset === 0 && text.trim()) doc.coverage.text.add(page)
+      deliveries.push([page, text.trim() ? createHash('sha256').update(text).digest('hex') : null, offset, part.length, text.length])
       results.push({ page, citation: citation(doc.source, page), method, text: part, total_characters: text.length, offset, truncated, next_offset: truncated ? offset + part.length : null, warnings })
       budget -= part.length
       if (budget === 0) break
     }
+    // An error on a later page means no page text is delivered by this call.
+    signal.throwIfAborted()
+    for (const delivery of deliveries) recordTextDelivery(doc, ...delivery)
     return { ...report(doc), pages: results, next_page: results.at(-1).page < end ? results.at(-1).page + 1 : null, warnings: ['TEXT_STRUCTURE_LIMITS: plain text and OCR may flatten superscripts, subscripts, fractions and table structure. Verify equations against a rendered page or a math-capable parser; do not infer exact notation from detached symbols.'], coverage: coverage(doc) }
   })
 
