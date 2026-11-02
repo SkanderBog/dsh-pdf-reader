@@ -21,8 +21,12 @@ export function nativeEnvironment(source = process.env) {
 export function run(executable, args, { signal, maxBytes = 16 * 1024 * 1024, timeout = 30000 } = {}) {
   signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
+    // A configured executable may wrap Poppler/Tesseract. Keep its descendants
+    // in one process group so cancellation also stops the actual processor.
+    const processGroup = process.platform !== 'win32'
     const child = spawn(executable, args, {
       shell: false,
+      detached: processGroup,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: nativeEnvironment(),
@@ -33,7 +37,13 @@ export function run(executable, args, { signal, maxBytes = 16 * 1024 * 1024, tim
     let failure
     function stop(error) {
       failure ??= error
-      child.kill('SIGKILL')
+      if (processGroup && child.pid) {
+        try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') }
+      } else child.kill('SIGKILL')
+      // Descendants can inherit these pipes. Closing our ends also bounds the
+      // rejection when a wrapper has escaped its group or on Windows.
+      child.stdout.destroy()
+      child.stderr.destroy()
     }
     function abort() { stop(signal.reason ?? new Error('PDF_CANCELLED')) }
     const timer = setTimeout(() => stop(new Error('PDF_TIMEOUT: document processing exceeded its time limit')), timeout)
