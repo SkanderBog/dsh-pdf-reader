@@ -22,12 +22,23 @@ jobs:
           - os: ubuntu-latest
             node: 24
             harness: 0.2.1-alpha.1
+            cordis: 4.0.5-alpha.1
           - os: ubuntu-latest
             node: 24
             harness: 0.2.1-alpha.2
+            cordis: 4.0.5-alpha.1
           - os: ubuntu-latest
             node: 24
             harness: 0.2.1-rc.2
+            cordis: 4.0.5
+          - os: ubuntu-latest
+            node: 24
+            harness: 0.2.1-rc.5
+            cordis: 4.0.5
+          - os: ubuntu-latest
+            node: 24
+            harness: 0.2.2-alpha.2
+            cordis: 4.0.6-alpha.1
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -48,13 +59,16 @@ jobs:
         shell: bash
         env:
           HARNESS_TEST_VERSION: ${{ matrix.harness }}
+          HARNESS_CORDIS_VERSION: ${{ matrix.cordis }}
+          NODE_OPTIONS: --max-old-space-size=1024
         run: |
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs'
           import { execFileSync } from 'node:child_process'
           const { devDependencies } = JSON.parse(readFileSync('package.json', 'utf8'))
           const packages = Object.keys(devDependencies).filter(name => name.startsWith('@deepseek-ai/dsh-'))
-          execFileSync('npm', ['install', '--no-save', '--package-lock=false', '--ignore-scripts', '--no-audit', '--no-fund', `@deepseek-ai/cordis@${process.env.HARNESS_TEST_VERSION === '0.2.1-rc.2' ? '4.0.5' : '4.0.5-alpha.1'}`, ...packages.map(name => `${name}@${process.env.HARNESS_TEST_VERSION}`)], { stdio: 'inherit' })
+          if (process.env.HARNESS_TEST_VERSION.startsWith('0.2.2-')) packages.push('@deepseek-ai/dsh-tool-executor-native')
+          execFileSync('npm', ['install', '--no-save', '--package-lock=false', '--ignore-scripts', '--no-audit', '--no-fund', `@deepseek-ai/cordis@${process.env.HARNESS_CORDIS_VERSION}`, ...packages.map(name => `${name}@${process.env.HARNESS_TEST_VERSION}`)], { stdio: 'inherit' })
           JS
       - run: npm run check
       - run: npm run test:package
