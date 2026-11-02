@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — 2026-11-02
+
+- Stop native processor descendants on POSIX timeout/cancellation and promptly reject cancelled queued work.
+- Track complete text delivery across contiguous read offsets without combining different text representations; failed calls and cancelled image saves no longer claim delivery.
+- Validate OCR language arguments consistently and distinguish unknown image capability from explicitly text-only routes.
+- Exercise actual DeepSeek model metadata, arbitrary model IDs, route/capability changes, and real images without network or model calls.
+- Add Harness `0.2.1-rc.5` and `0.2.2-alpha.2` package lanes with exact Cordis families, alpha native-executor fixtures, and a current rc.5 CLI lifecycle lane.
+
 ## 0.1.4 — 2026-10-19
 
 - Honor cancellation before cached OCR returns; clean OCR input files even when writing is interrupted.

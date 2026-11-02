@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 import { readFile, writeFile, copyFile, rm } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { host, library } from './runtime.mjs'
-import { openDocument, render, extract } from '../src/document.mjs'
-import { run } from '../src/process.mjs'
+import { pathToFileURL } from 'node:url'
+const moduleEntry = process.env.DSH_PDF_PLUGIN_ENTRY ? pathToFileURL(resolve(process.env.DSH_PDF_PLUGIN_ENTRY)) : new URL('../src/index.mjs', import.meta.url)
+const { openDocument, render, extract } = await import(new URL('./document.mjs', moduleEntry))
+const { run } = await import(new URL('./process.mjs', moduleEntry))
 import './search.test.mjs'
 import './cache.test.mjs'
 import './process.test.mjs'
@@ -171,6 +173,31 @@ test('render returns actual durable Harness image content and identifies crop sc
   assert.ok(saved)
 })
 
+test('cancelled attachment storage cannot claim an image was delivered', async t => {
+  const h = await setup(t)
+  const attachments = h.ctx.attachments
+  const original = attachments.saveImage
+  let release, started
+  const blocked = new Promise(resolve => { release = resolve })
+  const entered = new Promise(resolve => { started = resolve })
+  attachments.saveImage = async (...args) => { started(); await blocked; return original.apply(attachments, args) }
+  const controller = new AbortController()
+  const rendering = h.direct('pdf_render', { file_path: file, page: 1, pixels: 600 }, 'vision', controller.signal)
+  try {
+    await entered
+    controller.abort(new Error('cancel image storage'))
+    await assert.rejects(rendering, /cancel image storage/)
+  } finally {
+    release()
+    attachments.saveImage = original
+  }
+  // This inspection is queued after the in-flight save and uses the same
+  // session as the cancelled render, so it checks the actual cached ledger.
+  const inspected = await h.direct('pdf_inspect', { file_path: file })
+  assert.deepEqual(inspected.value.coverage.full_page_images_returned, [])
+  assert.deepEqual(inspected.value.coverage.cropped_page_images_returned, [])
+})
+
 test('truncated page text provides a lossless continuation without claiming full coverage', async t => {
   const h = await setup(t)
   const path = join(h.home, 'long.pdf')
@@ -245,6 +272,40 @@ test('invalid OCR languages fail consistently before sparse-page detection', asy
 test('render refuses text-only models before reading a document', async t => {
   const h = await setup(t)
   await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }, 'text'), /PDF_MODEL_TEXT_ONLY/)
+})
+
+test('render distinguishes undisclosed model capabilities from explicit text-only capability', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  llm.resolveModelInfo = async () => ({ id: 'new-dynamic-model' })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_UNKNOWN/)
+  llm.resolveModelInfo = async () => ({ inputModalities: [] })
+  await assert.rejects(h.direct('pdf_render', { file_path: 'nonexistent.pdf', page: 1 }), /PDF_MODEL_TEXT_ONLY/)
+})
+
+test('render resolves the active routed provider and dynamic model on every call', async t => {
+  const h = await setup(t)
+  const llm = h.ctx.get('llm')
+  const calls = []
+  llm.resolveModelInfo = async (provider, model, signal) => {
+    calls.push([provider, model])
+    assert.equal(signal.aborted, false)
+    return { inputModalities: model === 'dynamic-vision' ? ['text', 'image'] : ['text'] }
+  }
+  let current = { provider: 'routed-provider', model: 'dynamic-vision' }
+  const exec = {
+    signal: new AbortController().signal,
+    agent: {
+      session: { header: { id: 'route-test', cwd: resolve('test/fixtures') }, requestHeader() { return { config: current } } },
+      options: { provider: 'stale-provider', model: 'stale-text-model' },
+    },
+  }
+  const render = h.ctx.tools.get('pdf_render')
+  const first = await render.execute({ file_path: file, page: 1, pixels: 600 }, exec)
+  assert.equal(first.image.mediaType, 'image/png')
+  current = { provider: 'another-provider', model: 'dynamic-text' }
+  await assert.rejects(render.execute({ file_path: 'nonexistent.pdf', page: 1 }, exec), /PDF_MODEL_TEXT_ONLY/)
+  assert.deepEqual(calls, [['routed-provider', 'dynamic-vision'], ['another-provider', 'dynamic-text']])
 })
 
 test('malformed PDFs, encryption and page bounds fail explicitly through the real registry', async t => {

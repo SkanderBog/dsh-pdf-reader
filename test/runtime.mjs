@@ -25,19 +25,26 @@ export async function host(config = {}) {
   const fibers = []
   fibers.push(await ctx.plugin(SystemPrompt))
   fibers.push(await ctx.plugin(ToolRuntime))
+  if (typeof ctx.tools.setExecutor === 'function') fibers.push(await ctx.plugin(await library('@deepseek-ai/dsh-tool-executor-native')))
   fibers.push(await ctx.plugin(LocalFileSystem, { cwd: resolve('test/fixtures') }))
   fibers.push(await ctx.plugin(LocalAttachmentStore, { dshHome: home }))
   fibers.push(await ctx.plugin(TestLlm))
   fibers.push(await ctx.plugin(plugin, { ...config }))
   let counter = 0
+  async function execute(name, args, signal, agent) {
+    const callId = `pdf-test-${++counter}`
+    if (typeof ctx.tools.setExecutor !== 'function') return ctx.tools.execute({ name, arguments: args, callId, signal, agent })
+    const batch = await ctx.tools.execute({ calls: [{ type: 'tool-call', id: callId, name, arguments: JSON.stringify(args) }], signal, agent })
+    return batch.results.find(entry => entry.callId === callId).result
+  }
   return {
     ctx, home,
     async call(name, args, signal = new AbortController().signal) {
-      return ctx.tools.execute({ name, arguments: args, callId: `pdf-test-${++counter}`, signal })
+      return execute(name, args, signal)
     },
     async routed(name, args, model = 'vision') {
       const agent = { session: { header: { id: 'test-session', cwd: resolve('test/fixtures') }, requestHeader() { return { config: { provider: 'test', model } } } }, options: {} }
-      return ctx.tools.execute({ name, arguments: args, agent, callId: `pdf-test-${++counter}`, signal: new AbortController().signal })
+      return execute(name, args, new AbortController().signal, agent)
     },
     async direct(name, args, model = 'vision', signal = new AbortController().signal) {
       const tool = ctx.tools.get(name)

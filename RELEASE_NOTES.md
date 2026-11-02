@@ -1,7 +1,11 @@
-Read searchable and scanned PDFs in DeepSeek Harness through five tools: inspect, read, search, render and dependency status. Page images and crops are returned as Harness image attachments when the routed model supports vision. English and Simplified Chinese OCR run locally with Tesseract.
+# PDF Reader 0.1.5
 
-Install the attached `.tgz` through the desktop Plugins page and enable `dsh-pdf-reader`. Install Poppler and Tesseract separately; see the README for platform setup and official desktop profile instructions. No npm runtime dependencies or model weights are included.
+- Stop native processor descendants on POSIX timeout/cancellation and promptly reject cancelled queued work.
+- Track complete text delivery across contiguous read offsets without combining different text representations; failed calls and cancelled image saves no longer claim delivery.
+- Validate OCR language arguments consistently and distinguish unknown image capability from explicitly text-only routes.
+- Exercise actual DeepSeek model metadata, arbitrary model IDs, route/capability changes, and real images without network or model calls.
+- Add Harness `0.2.1-rc.5` and `0.2.2-alpha.2` package lanes with exact Cordis families, alpha native-executor fixtures, and a current rc.5 CLI lifecycle lane.
 
-Validation covers real Harness services, OCR, citations, truncation, rendering/crops, permissions, cancellation and explicit failure reporting. Official desktop compatibility is based on shared APIs and its documented plugin mechanism; its packaged GUI and Windows are not yet verified. OCR and complex visual interpretation remain fallible, and no model-accuracy improvement percentage is claimed.
+Install the attached `.tgz` using the correct DSH profile's Plugins page or CLI. Verify it against `SHA256SUMS`. This GitHub release does not update an installed profile or confer Store approval.
 
-All 15 integration tests passed in each of three CI jobs: Linux with Node 22 and 24, and macOS with Node 24. See [CI evidence](https://github.com/SkanderBog/dsh-pdf-reader/actions/runs/36973885294).
+Validation covers real Harness services and extracted package contents, plus controlled model-adapter behavior. Paid provider output quality and packaged desktop GUIs are not certified. PDF native processing is tested on Linux/macOS; Windows native execution remains unverified. Poppler and optional Tesseract must be installed separately. The unscoped npm name belongs to another author; use this repository archive.
