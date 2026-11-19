@@ -39,6 +39,14 @@ jobs:
             node: 24
             harness: 0.2.2-alpha.2
             cordis: 4.0.6-alpha.1
+          - os: ubuntu-latest
+            node: 24
+            harness: 0.2.2-rc.2
+            cordis: 4.1.0
+          - os: ubuntu-latest
+            node: 24
+            harness: 0.2.2-rc.5
+            cordis: 4.1.0
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -67,14 +75,14 @@ jobs:
           import { execFileSync } from 'node:child_process'
           const { devDependencies } = JSON.parse(readFileSync('package.json', 'utf8'))
           const packages = Object.keys(devDependencies).filter(name => name.startsWith('@deepseek-ai/dsh-'))
-          if (['0.2.1-rc.5', '0.2.2-alpha.2'].includes(process.env.HARNESS_TEST_VERSION)) packages.push('@deepseek-ai/dsh-llm-deepseek')
+          if (process.env.HARNESS_TEST_VERSION === '0.2.1-rc.5' || process.env.HARNESS_TEST_VERSION.startsWith('0.2.2-')) packages.push('@deepseek-ai/dsh-llm-deepseek')
           if (process.env.HARNESS_TEST_VERSION.startsWith('0.2.2-')) packages.push('@deepseek-ai/dsh-tool-executor-native')
           execFileSync('npm', ['install', '--no-save', '--package-lock=false', '--ignore-scripts', '--no-audit', '--no-fund', `@deepseek-ai/cordis@${process.env.HARNESS_CORDIS_VERSION}`, ...packages.map(name => `${name}@${process.env.HARNESS_TEST_VERSION}`)], { stdio: 'inherit' })
           JS
       - run: npm run check
       - run: npm run test:package
         env:
-          DSH_PDF_TEST_MODELS: ${{ matrix.harness == '0.2.1-rc.5' || matrix.harness == '0.2.2-alpha.2' }}
+          DSH_PDF_TEST_MODELS: ${{ matrix.harness == '0.2.1-rc.5' || startsWith(matrix.harness, '0.2.2-') }}
   profile:
     strategy:
       fail-fast: false
