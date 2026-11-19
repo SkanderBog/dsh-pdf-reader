@@ -26,10 +26,21 @@ function schema(properties, required = ['file_path']) {
   return { type: 'object', additionalProperties: false, properties, required }
 }
 
+function tesseractFallback(platform) {
+  const wrapper = join(homedir(), '.local', 'share', 'dsh-pdf-reader', 'tesseract')
+  if (existsSync(wrapper)) return wrapper
+  if (platform === 'darwin')
+    return ['/opt/homebrew/bin/tesseract', '/usr/local/bin/tesseract'].find(candidate => existsSync(candidate))
+  return undefined
+}
+
+function detectedBinary(key, platform = process.platform) {
+  return key === 'tesseract' ? tesseractFallback(platform) ?? key : key
+}
+
 export function apply(ctx, config = {}) {
-  const localOcr = join(homedir(), '.local', 'share', 'dsh-pdf-reader', 'tesseract')
   const binaries = Object.fromEntries(['pdfinfo', 'pdftotext', 'pdfimages', 'pdftoppm', 'tesseract'].map(key => {
-    const value = config[key] ?? (key === 'tesseract' && existsSync(localOcr) ? localOcr : key)
+    const value = config[key] ?? detectedBinary(key)
     if (typeof value !== 'string' || (!isAbsolute(value) && value !== key)) throw new Error(`PDF_CONFIG: ${key} must be an absolute executable path or its default command name`)
     return [key, value]
   }))

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 // Native processors need runtime paths and font/OCR configuration, not the host's
 // API keys, proxy authentication, Git tokens, or dynamic-loader overrides.
@@ -16,6 +16,21 @@ export function nativeEnvironment(source = process.env) {
     if (typeof value === 'string') env[key] = value
   }
   return { ...env, LC_ALL: 'C', OMP_THREAD_LIMIT: '1' }
+}
+
+/** Arguments that terminate a whole Windows process tree. */
+export function taskkillArgs(pid) {
+  return ['/PID', String(pid), '/T', '/F']
+}
+
+function killTree(child) {
+  if (!child.pid) return
+  if (process.platform === 'win32') {
+    const killed = spawnSync('taskkill', taskkillArgs(child.pid), { windowsHide: true, stdio: 'ignore' })
+    if (killed.error === undefined) return
+  }
+  // POSIX runs the processor detached, so the negative pid reaches its descendants.
+  try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') }
 }
 
 export function run(executable, args, { signal, maxBytes = 16 * 1024 * 1024, timeout = 30000 } = {}) {
@@ -37,9 +52,7 @@ export function run(executable, args, { signal, maxBytes = 16 * 1024 * 1024, tim
     let failure
     function stop(error) {
       failure ??= error
-      if (processGroup && child.pid) {
-        try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') }
-      } else child.kill('SIGKILL')
+      killTree(child)
       // Descendants can inherit these pipes. Closing our ends also bounds the
       // rejection when a wrapper has escaped its group or on Windows.
       child.stdout.destroy()

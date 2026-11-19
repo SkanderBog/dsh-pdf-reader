@@ -8,7 +8,11 @@ import { tmpdir } from 'node:os'
 const entry = process.env.DSH_PDF_PLUGIN_ENTRY
   ? new URL('./process.mjs', pathToFileURL(resolve(process.env.DSH_PDF_PLUGIN_ENTRY)))
   : new URL('../src/process.mjs', import.meta.url)
-const { nativeEnvironment, run } = await import(entry)
+const { nativeEnvironment, run, taskkillArgs } = await import(entry)
+
+test('Windows cancellation targets the whole process tree', () => {
+  assert.deepEqual(taskkillArgs(4321), ['/PID', '4321', '/T', '/F'])
+})
 
 test('native processor environment preserves runtime paths but drops credentials and code injection', () => {
   const allowed = { Path: 'C:\\tools', SystemRoot: 'C:\\Windows', TESSDATA_PREFIX: '/ocr/data', TMPDIR: '/tmp/pdf' }
