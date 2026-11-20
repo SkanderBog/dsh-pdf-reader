@@ -10,6 +10,7 @@ const { run } = await import(new URL('./process.mjs', moduleEntry))
 import './search.test.mjs'
 import './cache.test.mjs'
 import './process.test.mjs'
+import './status.test.mjs'
 
 const file = 'research-sample.pdf'
 const binaries = {

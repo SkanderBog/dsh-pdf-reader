@@ -47,6 +47,9 @@ export function apply(ctx, config = {}) {
   const documents = new Map()
   const lifetime = new AbortController()
   let tail = Promise.resolve()
+  const statusCacheMs = Number.isFinite(config.statusCacheMs) && config.statusCacheMs >= 0 ? config.statusCacheMs : 30_000
+  let statusCache
+  let statusCheckedAt = 0
 
   function serialized(operation, signal) {
     const combined = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
@@ -136,18 +139,22 @@ export function apply(ctx, config = {}) {
     }
   }
 
-  function register(toolName, description, parameters, action) {
+  function register(toolName, description, parameters, action, { queue = true } = {}) {
     ctx.tools.register({
       name: toolName, description, parameters,
       output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => textContent(value) },
-      isConcurrencySafe: () => false,
+      isConcurrencySafe: () => !queue,
       async execute(args, exec) {
+        if (!queue) return action(args, exec, exec.signal)
         return serialized(signal => action(args, exec, signal), exec.signal)
       },
     })
   }
 
   register('pdf_status', 'Check local PDF and OCR dependencies. Does not read documents or call a model.', schema({}, []), async (_args, _exec, signal) => {
+    const now = Date.now()
+    if (statusCache !== undefined && statusCacheMs > 0 && now - statusCheckedAt < statusCacheMs)
+      return { ...statusCache, cached: true }
     const tools = {}
     for (const [key, binary] of Object.entries(binaries)) {
       try {
@@ -163,8 +170,12 @@ export function apply(ctx, config = {}) {
         tools[key] = { available: false, error: error.message }
       }
     }
-    return { tools, processing: 'local', limits: { file_mib: 64, pages: 2000, read_pages_per_call: 10, inspect_pages_per_call: 100 } }
-  })
+    const limits = { file_mib: 64, pages: 2000, read_pages_per_call: 10, inspect_pages_per_call: 100 }
+    const checkedAt = new Date().toISOString()
+    statusCache = { tools, processing: 'local', limits, checked_at: checkedAt }
+    statusCheckedAt = Date.now()
+    return { ...statusCache, cached: false }
+  }, { queue: false })
 
   register('pdf_inspect', 'Inspect PDF page count, embedded text and image counts. Sparse text or embedded images suggest OCR; these checks cannot establish visual comprehension. Returns at most 100 page records; follow next_page.', schema(pages), async (args, exec, signal) => {
     const doc = await document(args, exec, signal)
