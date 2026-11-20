@@ -38,9 +38,11 @@ The official desktop is described in [DeepSeek's desktop documentation](https://
 
 Poppler and Tesseract are external native programs: this package does not bundle them. Install versions matching the host OS and architecture. GUI applications may have a different PATH from your terminal; configure absolute paths if `pdf_status` reports missing tools. On Apple Silicon Homebrew commonly installs binaries under `/opt/homebrew/bin`; on Intel Macs under `/usr/local/bin`. Windows requires its own native executables and OCR language data; the Linux OCR wrapper is not portable.
 
+`pdf_status` caches dependency probes for 30 seconds and reports the cache state as `cached` plus `checked_at`. Set `statusCacheMs` in the plugin configuration to change that window, or `0` to probe on every call. Document reads and OCR use a separate queue, so a long page does not block a status check.
+
 ## Installation
 
-Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
+Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Host compatibility is tested through `0.2.2-rc.5` as listed above; the packaged official desktop GUI and Windows execution have not been tested.
 
 Download `dsh-pdf-reader-0.1.7.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.7). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. This project is distributed through GitHub releases. The unscoped `dsh-pdf-reader` name on npm belongs to a different author; use this repository's archive or GitHub source to install this plugin.
 
