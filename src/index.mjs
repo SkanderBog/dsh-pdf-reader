@@ -46,6 +46,7 @@ export function apply(ctx, config = {}) {
   }))
   const documents = new Map()
   const lifetime = new AbortController()
+  const inflight = new Set()
   let tail = Promise.resolve()
   const statusCacheMs = Number.isFinite(config.statusCacheMs) && config.statusCacheMs >= 0 ? config.statusCacheMs : 30_000
   let statusCache
@@ -145,8 +146,11 @@ export function apply(ctx, config = {}) {
       output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => textContent(value) },
       isConcurrencySafe: () => !queue,
       async execute(args, exec) {
-        if (!queue) return action(args, exec, exec.signal)
-        return serialized(signal => action(args, exec, signal), exec.signal)
+        if (queue) return serialized(signal => action(args, exec, signal), exec.signal)
+        const signal = AbortSignal.any([exec.signal, lifetime.signal])
+        const operation = action(args, exec, signal)
+        inflight.add(operation)
+        try { return await operation } finally { inflight.delete(operation) }
       },
     })
   }
@@ -321,6 +325,7 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => async () => {
     lifetime.abort(new Error('PDF_PLUGIN_UNLOADED'))
     await tail
+    await Promise.allSettled([...inflight])
     await Promise.all([...documents.values()].map(doc => doc.close()))
     documents.clear()
   })
