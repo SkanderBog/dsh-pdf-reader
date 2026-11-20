@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 — 2026-11-20
+
+- Cache `pdf_status` dependency probes for 30 s (`statusCacheMs`; 0 disables) and keep the check off the document queue; results report `cached` and `checked_at`.
+- Terminate native process trees on Windows with `taskkill /T /F` on timeout or cancellation; POSIX keeps the process-group kill.
+- Probe Homebrew Tesseract locations on macOS before PATH.
+- Add Harness `0.2.2-rc.2` / `0.2.2-rc.5` package lanes with Cordis `4.1.0`, and record both in the Store compatibility matrix.
+
 ## 0.1.5 — 2026-11-02
 
 - Stop native processor descendants on POSIX timeout/cancellation and promptly reject cancelled queued work.
