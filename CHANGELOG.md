@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7 — 2026-11-20
+
+- Combine the caller signal with the plugin lifetime signal for off-queue `pdf_status` probes, track them, and settle them during disposal. A probe could previously keep running after the plugin was disabled or uninstalled.
+
 ## 0.1.6 — 2026-11-20
 
 - Cache `pdf_status` dependency probes for 30 s (`statusCacheMs`; 0 disables) and keep the check off the document queue; results report `cached` and `checked_at`.
