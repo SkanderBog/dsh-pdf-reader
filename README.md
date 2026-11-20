@@ -42,12 +42,12 @@ Poppler and Tesseract are external native programs: this package does not bundle
 
 Requires Node 22.19+ or 24+ and DeepSeek Harness `0.2.0-rc.2` or newer with the tool output, filesystem and attachment interfaces. The package declares this Harness floor so plugin managers can check it before installation. Tested against Harness `0.2.0-rc.2` on Linux. The packaged official desktop GUI and Windows execution have not been tested.
 
-Download `dsh-pdf-reader-0.1.5.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.5). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. This project is distributed through GitHub releases. The unscoped `dsh-pdf-reader` name on npm belongs to a different author; use this repository's archive or GitHub source to install this plugin.
+Download `dsh-pdf-reader-0.1.6.tgz` from the [GitHub release](https://github.com/SkanderBog/dsh-pdf-reader/releases/tag/v0.1.6). Use the desktop's Plugins page to install the archive and enable **dsh-pdf-reader**. This project is distributed through GitHub releases. The unscoped `dsh-pdf-reader` name on npm belongs to a different author; use this repository's archive or GitHub source to install this plugin.
 
 For the official desktop, prefer its Plugins page. If using the command installed by the official desktop, launch the desktop once to initialize its profile, fully quit it, then run:
 
 ```sh
-dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.5.tgz
+dsh plugin --profile desktop add /absolute/path/dsh-pdf-reader-0.1.6.tgz
 ```
 
 Reopen the desktop after the command finishes. Do not use `desktop` as the profile for a community shell unless that shell actually owns that profile. Restart the Harness core if its profile does not use hot reload.
@@ -55,7 +55,7 @@ Reopen the desktop after the command finishes. Do not use `desktop` as the profi
 For a named CLI profile:
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.5.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/dsh-pdf-reader-0.1.6.tgz
 ```
 
 Use the profile that the desktop actually runs; its name is not necessarily `web` or `desktop`. Package installation and bundle activation are managed by Harness. Do not copy tool code into the model provider or edit the desktop's generated frontend.
