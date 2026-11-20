@@ -71,3 +71,17 @@ test('pdf_status answers while a document read is blocked in a native probe', as
   const result = value(await read)
   assert.equal(result.total_pages, 3)
 })
+
+test('unload aborts and waits for an off-queue status probe', async t => {
+  const fake = await fakePdfinfo(t, 'sleep 5\nexec pdfinfo "$@"')
+  const h = await host({ ...binaries, pdfinfo: fake.path, statusCacheMs: 0 })
+  const status = h.call('pdf_status', {})
+  await new Promise(resolve => setTimeout(resolve, 250))
+  const started = Date.now()
+  await h.close()
+  const elapsed = Date.now() - started
+  const result = await status
+  assert.equal(result.isError, true)
+  assert.match(JSON.stringify(result), /PDF_PLUGIN_UNLOADED/)
+  assert.ok(elapsed < 2000, `unload waited ${elapsed}ms for the status probe`)
+})
